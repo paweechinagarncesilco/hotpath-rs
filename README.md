@@ -13,6 +13,7 @@ BTW if you're into Rust perf also check out a new [channels-console](https://git
 
 - **Zero-cost when disabled** — fully gated by a feature flag.
 - **Low-overhead** profiling for both sync and async code.
+- **Live TUI dashboard** — real-time monitoring of performance metrics with terminal-based interface.
 - **Memory allocation tracking** — track bytes allocated or allocation counts per function.
 - **Detailed stats**: avg, total time, call count, % of total runtime, and configurable percentiles (p95, p99, etc.).
 - **Background processing** for minimal profiling impact.
@@ -32,7 +33,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-hotpath = { version = "0.5", optional = true }
+hotpath = { version = "0.6", optional = true }
 
 [features]
 hotpath = ["dep:hotpath", "hotpath/hotpath"]
@@ -99,6 +100,35 @@ Output:
 | basic::sync_function  | 100   | 16.99µs | 35.42µs | 1.70ms   | 1.39%   |
 +-----------------------+-------+---------+---------+----------+---------+
 ```
+
+## Live Performance Metrics TUI
+
+![hotpath TUI Example](hotpath-tui.gif)
+
+`hotpath` includes a live terminal-based dashboard for real-time monitoring of profiling metrics. This is particularly useful for long-running applications like web servers, where you want to observe performance characteristics while the application is running.
+
+### Getting Started with TUI
+
+**1. Install the hotpath binary with TUI support:**
+
+```bash
+cargo install hotpath --features tui
+```
+
+**2. Start your application with the HTTP metrics server enabled:**
+
+```bash
+# Set HOTPATH_HTTP_PORT to enable the metrics server
+HOTPATH_HTTP_PORT=6870 cargo run --features hotpath
+```
+
+**3. In a separate terminal, launch the TUI console:**
+
+```bash
+hotpath console --metrics-port 6870
+```
+
+The TUI will connect to your running application and display real-time profiling metrics with automatic refresh.
 
 ## Allocation Tracking
 
