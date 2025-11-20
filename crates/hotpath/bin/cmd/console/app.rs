@@ -1,56 +1,136 @@
-use crossterm::event::KeyCode;
-use hotpath::{MetricsJson, SamplesJson};
+//! TUI application state and main run loop
+//!
+//! The App struct manages all TUI state including metrics, channels, UI state,
+//! and user interactions. Implementation is split across modules:
+//! - `state`: Navigation and selection logic
+//! - `data`: Data fetching and updates
+//! - `keys`: Keyboard input handling
+
+use hotpath::channels::{ChannelLogs, LogEntry};
+use hotpath::{channels::ChannelsJson, FunctionLogsJson, FunctionsJson};
 use ratatui::widgets::TableState;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
+
+// Helper modules containing App implementation
+mod data;
+mod keys;
+mod state;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SelectedTab {
     #[default]
-    Metrics,
+    Functions,
     Channels,
 }
 
 impl SelectedTab {
-    pub(crate) fn title(&self) -> &'static str {
+    pub(crate) fn number(&self) -> u8 {
         match self {
-            SelectedTab::Metrics => "1 Metrics",
-            SelectedTab::Channels => "2 Channels",
+            SelectedTab::Functions => 1,
+            SelectedTab::Channels => 2,
+        }
+    }
+
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            SelectedTab::Functions => "Functions",
+            SelectedTab::Channels => "Channels",
         }
     }
 }
 
+/// Represents which UI component has focus in the Channels tab
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ChannelsFocus {
+    Channels,
+    Logs,
+    Inspect,
+}
+
+/// Cached logs with a lookup map for received entries
+pub(crate) struct CachedLogs {
+    pub(crate) logs: ChannelLogs,
+    pub(crate) received_map: HashMap<u64, LogEntry>,
+}
+
+/// Main TUI application state
+///
+/// This struct manages all application state including:
+/// - Functions data and channels data from the profiled application
+/// - UI state (selected tab, table selections, focus)
+/// - HTTP client for fetching data from the metrics server
+/// - Error handling and connection status
+///
+/// The implementation is split across multiple modules to improve maintainability.
 pub(crate) struct App {
-    pub(crate) metrics: MetricsJson,
-    pub(crate) channels: hotpath::channels::ChannelsJson,
+    // Data from profiled application
+    /// Current functions data (functions, timings, allocations)
+    pub(crate) functions: FunctionsJson,
+    /// Current channels data (message passing statistics)
+    pub(crate) channels: ChannelsJson,
+
+    // UI state - navigation and selection
+    /// Selection state for main table (functions or channels)
     pub(crate) table_state: TableState,
+    /// Currently selected tab (Functions or Channels)
     pub(crate) selected_tab: SelectedTab,
+    /// Whether automatic refresh is paused
     pub(crate) paused: bool,
+
+    // Timing and status
+    /// Last time data was refreshed
     pub(crate) last_refresh: Instant,
+    /// Last successful data fetch (for connection status)
     pub(crate) last_successful_fetch: Option<Instant>,
+    /// Current error message to display, if any
     pub(crate) error_message: Option<String>,
-    pub(crate) show_samples: bool,
-    pub(crate) current_samples: Option<SamplesJson>,
+
+    // Function logs panel (Functions tab)
+    /// Whether function logs panel is visible
+    pub(crate) show_function_logs: bool,
+    /// Current function logs data for selected function
+    pub(crate) current_function_logs: Option<FunctionLogsJson>,
+    /// Function pinned for logs display
     pub(crate) pinned_function: Option<String>,
+
+    // HTTP client and configuration
+    /// HTTP client for fetching data from metrics server
     pub(crate) agent: ureq::Agent,
+    /// Port where metrics HTTP server is running
     pub(crate) metrics_port: u16,
+    /// Whether the application should exit
     exit: bool,
+
+    // Channels tab specific state
+    /// Selection state for logs table
+    pub(crate) channel_logs_table_state: TableState,
+    /// Which component has focus in Channels tab
+    pub(crate) focus: ChannelsFocus,
+    /// Whether logs panel is visible
+    pub(crate) show_logs: bool,
+    /// Cached logs data for selected channel
+    pub(crate) logs: Option<CachedLogs>,
+    /// Log entry being inspected in popup
+    pub(crate) inspected_log: Option<LogEntry>,
 }
 
 impl App {
+    /// Create a new App instance
     pub(crate) fn new(metrics_port: u16) -> Self {
         let config = ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_millis(2000)))
+            .timeout_global(Some(super::constants::http_timeout()))
             .build();
         let agent: ureq::Agent = config.into();
 
         Self {
-            metrics: MetricsJson {
+            functions: FunctionsJson {
                 hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
                 total_elapsed: 0,
                 description: "Waiting for data...".to_string(),
                 caller_name: "unknown".to_string(),
                 percentiles: vec![95],
-                data: hotpath::MetricsDataJson(std::collections::HashMap::new()),
+                data: hotpath::FunctionsDataJson(std::collections::HashMap::new()),
             },
             channels: hotpath::channels::ChannelsJson {
                 current_elapsed_ns: 0,
@@ -62,219 +142,31 @@ impl App {
             last_refresh: Instant::now(),
             last_successful_fetch: None,
             error_message: None,
-            show_samples: false,
-            current_samples: None,
+            show_function_logs: false,
+            current_function_logs: None,
             pinned_function: None,
             agent,
             metrics_port,
             exit: false,
+            channel_logs_table_state: TableState::default(),
+            focus: ChannelsFocus::Channels,
+            show_logs: false,
+            logs: None,
+            inspected_log: None,
         }
     }
 
-    pub(crate) fn next_function(&mut self) {
-        let function_count = self.metrics.data.0.len();
-        if function_count == 0 {
-            return;
-        }
-
-        let i = match self.table_state.selected() {
-            Some(i) => (i + 1).min(function_count - 1), // Bounded, stop at last
-            None => 0,
-        };
-        self.table_state.select(Some(i));
-    }
-
-    pub(crate) fn previous_function(&mut self) {
-        let function_count = self.metrics.data.0.len();
-        if function_count == 0 {
-            return;
-        }
-
-        let i = match self.table_state.selected() {
-            Some(i) => i.saturating_sub(1), // Bounded, stop at 0
-            None => 0,
-        };
-        self.table_state.select(Some(i));
-    }
-
-    pub(crate) fn toggle_pause(&mut self) {
-        self.paused = !self.paused;
-    }
-
-    pub(crate) fn switch_to_tab(&mut self, tab: SelectedTab) {
-        self.selected_tab = tab;
-    }
-
-    pub(crate) fn update_metrics(&mut self, metrics: MetricsJson) {
-        // Capture the currently selected function name (not index!)
-        let selected_function_name = self.selected_function_name();
-
-        self.metrics = metrics;
-        self.last_successful_fetch = Some(Instant::now());
-        self.error_message = None;
-
-        let sorted_entries = self.get_sorted_entries();
-
-        if let Some(function_name) = selected_function_name {
-            // Find the new index of the previously selected function in sorted order
-            if let Some(new_idx) = sorted_entries
-                .iter()
-                .position(|(name, _)| name == &function_name)
-            {
-                self.table_state.select(Some(new_idx));
-            } else {
-                // Function no longer exists, select the last one
-                if !sorted_entries.is_empty() {
-                    self.table_state.select(Some(sorted_entries.len() - 1));
-                }
-            }
-        } else if let Some(selected) = self.table_state.selected() {
-            // Bound check: if current selection is now out of bounds
-            if selected >= sorted_entries.len() && !sorted_entries.is_empty() {
-                self.table_state.select(Some(sorted_entries.len() - 1));
-            }
-        } else if !sorted_entries.is_empty() {
-            // No selection yet, select first item
-            self.table_state.select(Some(0));
-        }
-    }
-
-    pub(crate) fn set_error(&mut self, error: String) {
-        self.error_message = Some(error);
-    }
-
-    pub(crate) fn update_channels(&mut self, channels: hotpath::channels::ChannelsJson) {
-        self.channels = channels;
-        self.last_successful_fetch = Some(Instant::now());
-        self.error_message = None;
-    }
-
-    pub(crate) fn toggle_samples(&mut self) {
-        self.show_samples = !self.show_samples;
-        if self.show_samples {
-            // Pin the currently selected function when opening samples panel
-            self.pinned_function = self.selected_function_name();
-        } else {
-            // Clear pinned function when closing samples panel
-            self.pinned_function = None;
-        }
-    }
-
-    /// Get sorted entries (sorted by percentage, highest first)
-    pub(crate) fn get_sorted_entries(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
-        use hotpath::MetricType;
-
-        let mut entries: Vec<(String, Vec<MetricType>)> = self
-            .metrics
-            .data
-            .0
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-
-        entries.sort_by(|(_, metrics_a), (_, metrics_b)| {
-            let percent_a = metrics_a
-                .iter()
-                .find_map(|m| {
-                    if let MetricType::Percentage(p) = m {
-                        Some(*p)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
-
-            let percent_b = metrics_b
-                .iter()
-                .find_map(|m| {
-                    if let MetricType::Percentage(p) = m {
-                        Some(*p)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
-
-            percent_b.cmp(&percent_a)
-        });
-
-        entries
-    }
-
-    pub(crate) fn selected_function_name(&self) -> Option<String> {
-        let sorted_entries = self.get_sorted_entries();
-        self.table_state
-            .selected()
-            .and_then(|idx| sorted_entries.get(idx).map(|(name, _)| name.clone()))
-    }
-
-    pub(crate) fn update_samples(&mut self, samples: SamplesJson) {
-        self.current_samples = Some(samples);
-    }
-
-    pub(crate) fn clear_samples(&mut self) {
-        self.current_samples = None;
-    }
-
-    pub(crate) fn update_pinned_function(&mut self) {
-        if self.show_samples {
-            self.pinned_function = self.selected_function_name();
-        }
-    }
-
-    pub(crate) fn samples_function_name(&self) -> Option<&str> {
-        self.pinned_function.as_deref()
-    }
-
-    /// Fetch samples for pinned function if panel is open
-    pub(crate) fn fetch_samples_if_open(&mut self, port: u16) {
-        if self.show_samples {
-            if let Some(function_name) = self.samples_function_name() {
-                match super::http::fetch_samples(&self.agent, port, function_name) {
-                    Ok(samples) => self.update_samples(samples),
-                    Err(_) => self.clear_samples(),
-                }
-            }
-        }
-    }
-
-    /// Update pinned function and fetch samples if panel is open
-    pub(crate) fn update_and_fetch_samples(&mut self, port: u16) {
-        self.update_pinned_function();
-        self.fetch_samples_if_open(port);
-    }
-
+    /// Request application exit
     pub(crate) fn exit(&mut self) {
         self.exit = true;
     }
 
-    fn refresh_data(&mut self) {
-        match self.selected_tab {
-            SelectedTab::Metrics => {
-                match super::http::fetch_metrics(&self.agent, self.metrics_port) {
-                    Ok(metrics) => {
-                        self.update_metrics(metrics);
-                    }
-                    Err(e) => {
-                        self.set_error(format!("{}", e));
-                    }
-                }
-                self.fetch_samples_if_open(self.metrics_port);
-            }
-            SelectedTab::Channels => {
-                match super::http::fetch_channels(&self.agent, self.metrics_port) {
-                    Ok(channels) => {
-                        self.update_channels(channels);
-                    }
-                    Err(e) => {
-                        self.set_error(format!("{}", e));
-                    }
-                }
-            }
-        }
-        self.last_refresh = Instant::now();
-    }
-
+    /// Main TUI run loop
+    ///
+    /// This runs the event loop, handling:
+    /// - Periodic data refresh (unless paused)
+    /// - Rendering the UI
+    /// - Processing keyboard input
     pub(crate) fn run(
         &mut self,
         terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
@@ -293,7 +185,7 @@ impl App {
 
             terminal.draw(|frame| super::views::render_ui(frame, self))?;
 
-            if event::poll(Duration::from_millis(100))? {
+            if event::poll(super::constants::event_poll_interval())? {
                 if let Event::Key(key_event) = event::read()? {
                     if key_event.kind == KeyEventKind::Press {
                         self.handle_key_event(key_event.code);
@@ -304,32 +196,9 @@ impl App {
 
         Ok(())
     }
-
-    fn handle_key_event(&mut self, key_code: KeyCode) {
-        match key_code {
-            KeyCode::Char('q') | KeyCode::Char('Q') => self.exit(),
-            KeyCode::Char('p') | KeyCode::Char('P') => self.toggle_pause(),
-            KeyCode::Char('1') => {
-                self.switch_to_tab(SelectedTab::Metrics);
-                self.refresh_data();
-            }
-            KeyCode::Char('2') => {
-                self.switch_to_tab(SelectedTab::Channels);
-                self.refresh_data();
-            }
-            KeyCode::Char('o') | KeyCode::Char('O') => {
-                self.toggle_samples();
-                self.fetch_samples_if_open(self.metrics_port);
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.next_function();
-                self.update_and_fetch_samples(self.metrics_port);
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.previous_function();
-                self.update_and_fetch_samples(self.metrics_port);
-            }
-            _ => {}
-        }
-    }
 }
+
+// Note: Most App methods are implemented in submodules for better organization:
+// - app/state.rs: Navigation and selection methods (next_function, toggle_logs, etc.)
+// - app/data.rs: Data fetching and update methods (update_metrics, refresh_data, etc.)
+// - app/keys.rs: Keyboard input handling (handle_key_event)

@@ -38,7 +38,7 @@ impl Reporter for JsonFileReporter {
             return Ok(());
         }
 
-        let json = hotpath::MetricsJson::from(metrics_provider);
+        let json = hotpath::FunctionsJson::from(metrics_provider);
 
         let json_string = serde_json::to_string_pretty(&json)?;
         std::fs::write("hotpath_report.json", json_string)?;

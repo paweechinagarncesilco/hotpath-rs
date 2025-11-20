@@ -1,6 +1,6 @@
 use crate::channels::{get_channel_logs, get_channels_json, get_stream_logs, get_streams_json};
-use crate::output::MetricsJson;
-use crate::{QueryRequest, SamplesJson, HOTPATH_STATE};
+use crate::output::FunctionsJson;
+use crate::{FunctionLogsJson, QueryRequest, HOTPATH_STATE};
 use crossbeam_channel::bounded;
 use regex::Regex;
 use serde::Serialize;
@@ -15,6 +15,8 @@ static RE_CHANNEL_LOGS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^/channels/(\d+)/logs$").unwrap());
 static RE_STREAM_LOGS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^/streams/(\d+)/logs$").unwrap());
+static RE_FUNCTION_LOGS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^/functions/([^/]+)/logs$").unwrap());
 
 /// Tracks whether the HTTP server has been started to prevent duplicate instances
 static HTTP_SERVER_STARTED: OnceLock<()> = OnceLock::new();
@@ -56,7 +58,7 @@ fn handle_request(request: Request) {
 
     match path.as_str() {
         "/metrics" => {
-            let metrics = get_metrics_json();
+            let metrics = get_functions_json();
             respond_json(request, &metrics);
         }
         "/channels" => {
@@ -68,9 +70,9 @@ fn handle_request(request: Request) {
             respond_json(request, &streams);
         }
         _ => {
-            // Handle /samples/<encoded_key>
-            if let Some(encoded_key) = path.strip_prefix("/samples/") {
-                handle_samples_request(request, encoded_key);
+            // Handle /functions/<encoded_key>/logs
+            if let Some(caps) = RE_FUNCTION_LOGS.captures(&path) {
+                handle_function_logs_request(request, &caps[1]);
                 return;
             }
 
@@ -122,7 +124,7 @@ fn respond_internal_error(request: Request, e: impl Display) {
     );
 }
 
-fn handle_samples_request(request: Request, encoded_key: &str) {
+fn handle_function_logs_request(request: Request, encoded_key: &str) {
     let function_name = match base64_decode(encoded_key) {
         Ok(name) => name,
         Err(e) => {
@@ -131,17 +133,17 @@ fn handle_samples_request(request: Request, encoded_key: &str) {
         }
     };
 
-    // Get samples from worker thread
-    match get_samples_for_function(&function_name) {
-        Some(samples_json) => {
-            respond_json(request, &samples_json);
+    // Get logs from worker thread
+    match get_function_logs(&function_name) {
+        Some(function_logs_json) => {
+            respond_json(request, &function_logs_json);
         }
         None => {
             respond_error(
                 request,
                 404,
                 &format!(
-                    "Function '{}' not found or no samples available",
+                    "Function '{}' not found or no logs available",
                     function_name
                 ),
             );
@@ -157,25 +159,25 @@ fn base64_decode(encoded: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| e.to_string())
 }
 
-fn get_samples_for_function(function_name: &str) -> Option<SamplesJson> {
+fn get_function_logs(function_name: &str) -> Option<FunctionLogsJson> {
     let arc_swap = HOTPATH_STATE.get()?;
     let state_option = arc_swap.load();
     let state_arc = (*state_option).as_ref()?.clone();
 
     let state_guard = state_arc.read().ok()?;
 
-    let (response_tx, response_rx) = bounded::<Option<SamplesJson>>(1);
+    let (response_tx, response_rx) = bounded::<Option<FunctionLogsJson>>(1);
 
     if let Some(query_tx) = &state_guard.query_tx {
         query_tx
-            .send(QueryRequest::GetSamples {
+            .send(QueryRequest::GetFunctionCalls {
                 function_name: function_name.to_string(),
                 response_tx,
             })
             .ok()?;
         drop(state_guard);
 
-        // Receive the response - it will be Some(SamplesJson) or None
+        // Receive the response - it will be Some(FunctionLogsJson) or None
         response_rx
             .recv_timeout(Duration::from_millis(250))
             .ok()
@@ -185,33 +187,35 @@ fn get_samples_for_function(function_name: &str) -> Option<SamplesJson> {
     }
 }
 
-fn get_metrics_json() -> MetricsJson {
-    if let Some(metrics) = try_get_metrics_from_worker() {
+fn get_functions_json() -> FunctionsJson {
+    if let Some(metrics) = try_get_functions_from_worker() {
         return metrics;
     }
 
-    // Fallback if query fails: return empty metrics
-    MetricsJson {
+    // Fallback if query fails: return empty functions data
+    FunctionsJson {
         hotpath_profiling_mode: crate::output::ProfilingMode::Timing,
         total_elapsed: 0,
-        description: "No metrics available yet".to_string(),
+        description: "No functions data available yet".to_string(),
         caller_name: "hotpath".to_string(),
         percentiles: vec![95],
-        data: crate::output::MetricsDataJson(HashMap::new()),
+        data: crate::output::FunctionsDataJson(HashMap::new()),
     }
 }
 
-fn try_get_metrics_from_worker() -> Option<MetricsJson> {
+fn try_get_functions_from_worker() -> Option<FunctionsJson> {
     let arc_swap = HOTPATH_STATE.get()?;
     let state_option = arc_swap.load();
     let state_arc = (*state_option).as_ref()?.clone();
 
     let state_guard = state_arc.read().ok()?;
 
-    let (response_tx, response_rx) = bounded::<MetricsJson>(1);
+    let (response_tx, response_rx) = bounded::<FunctionsJson>(1);
 
     if let Some(query_tx) = &state_guard.query_tx {
-        query_tx.send(QueryRequest::GetMetrics(response_tx)).ok()?;
+        query_tx
+            .send(QueryRequest::GetFunctions(response_tx))
+            .ok()?;
         drop(state_guard);
 
         response_rx.recv_timeout(Duration::from_millis(250)).ok()

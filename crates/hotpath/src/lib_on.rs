@@ -1,5 +1,5 @@
 use crate::output;
-use crate::output::{MetricsJson, MetricsProvider, SamplesJson};
+use crate::output::{FunctionLogsJson, FunctionsJson, MetricsProvider};
 
 #[doc(hidden)]
 pub use cfg_if::cfg_if;
@@ -16,11 +16,11 @@ use crossbeam_channel::Sender;
 /// Query request sent from TUI HTTP server to profiler worker thread
 pub enum QueryRequest {
     /// Request full metrics snapshot
-    GetMetrics(Sender<MetricsJson>),
-    /// Request samples for a specific function (returns None if function not found)
-    GetSamples {
+    GetFunctions(Sender<FunctionsJson>),
+    /// Request function logs for a specific function (returns None if function not found)
+    GetFunctionCalls {
         function_name: String,
-        response_tx: Sender<Option<SamplesJson>>,
+        response_tx: Sender<Option<FunctionLogsJson>>,
     },
 }
 
@@ -469,7 +469,7 @@ impl GuardBuilder {
             ReporterConfig::None => Box::new(output::TableReporter),
         };
 
-        let recent_samples_limit = std::env::var("HOTPATH_RECENT_SAMPLES")
+        let recent_logs_limit = std::env::var("HOTPATH_RECENT_LOGS")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(50);
@@ -479,7 +479,7 @@ impl GuardBuilder {
             &self.percentiles,
             self.limit,
             reporter,
-            recent_samples_limit,
+            recent_logs_limit,
         )
     }
 
@@ -524,7 +524,7 @@ impl HotPath {
         percentiles: &[u8],
         limit: usize,
         _reporter: Box<dyn Reporter>,
-        recent_samples_limit: usize,
+        recent_logs_limit: usize,
     ) -> Self {
         let percentiles = percentiles.to_vec();
 
@@ -555,7 +555,7 @@ impl HotPath {
         let worker_percentiles = percentiles.clone();
         let worker_caller_name = caller_name;
         let worker_limit = limit;
-        let worker_recent_samples_limit = recent_samples_limit;
+        let worker_recent_logs_limit = recent_logs_limit;
 
         thread::Builder::new()
             .name("hotpath-worker".into())
@@ -567,7 +567,7 @@ impl HotPath {
                         recv(rx) -> result => {
                             match result {
                                 Ok(measurement) => {
-                                    process_measurement(&mut local_stats, measurement, worker_recent_samples_limit);
+                                    process_measurement(&mut local_stats, measurement, worker_recent_logs_limit);
                                 }
                                 Err(_) => break, // Channel disconnected
                             }
@@ -575,14 +575,14 @@ impl HotPath {
                         recv(shutdown_rx) -> _ => {
                             // Process remaining messages after shutdown signal
                             while let Ok(measurement) = rx.try_recv() {
-                                process_measurement(&mut local_stats, measurement, worker_recent_samples_limit);
+                                process_measurement(&mut local_stats, measurement, worker_recent_logs_limit);
                             }
                             break;
                         }
                         recv(query_rx) -> result => {
                             if let Ok(query_request) = result {
                                 match query_request {
-                                    QueryRequest::GetMetrics(response_tx) => {
+                                    QueryRequest::GetFunctions(response_tx) => {
                                         // Create metrics snapshot
                                         use output::MetricsProvider;
                                         let total_elapsed = worker_start_time.elapsed();
@@ -593,20 +593,20 @@ impl HotPath {
                                             worker_caller_name,
                                             worker_limit,
                                         );
-                                        let metrics_json = MetricsJson::from(&metrics_provider as &dyn MetricsProvider);
+                                        let metrics_json = FunctionsJson::from(&metrics_provider as &dyn MetricsProvider);
                                         let _ = response_tx.send(metrics_json);
                                     }
-                                    QueryRequest::GetSamples { function_name, response_tx } => {
+                                    QueryRequest::GetFunctionCalls { function_name, response_tx } => {
                                         let response = if let Some(stats) = local_stats.get(function_name.as_str()) {
-                                            let samples: Vec<(u64, u64)> = stats.recent_samples
+                                            let logs: Vec<(u64, u64)> = stats.recent_logs
                                                 .iter()
                                                 .rev()
                                                 .map(|(val, elapsed)| (*val, elapsed.as_nanos() as u64))
                                                 .collect();
-                                            Some(SamplesJson {
+                                            Some(FunctionLogsJson {
                                                 function_name,
-                                                samples,
-                                                count: stats.recent_samples.len(),
+                                                logs,
+                                                count: stats.recent_logs.len(),
                                             })
                                         } else {
                                             None

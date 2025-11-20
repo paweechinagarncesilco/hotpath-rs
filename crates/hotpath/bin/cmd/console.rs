@@ -1,6 +1,8 @@
 mod app;
+mod constants;
 mod http;
 mod views;
+mod widgets;
 
 use app::App;
 use clap::Parser;
@@ -10,7 +12,7 @@ use eyre::Result;
 pub struct ConsoleArgs {
     #[arg(
         long,
-        default_value_t = 6870,
+        default_value_t = 6770,
         help = "Port where the metrics HTTP server is running"
     )]
     pub metrics_port: u16,

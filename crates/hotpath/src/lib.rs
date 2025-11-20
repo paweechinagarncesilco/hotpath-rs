@@ -17,8 +17,8 @@ pub use lib_on::channels;
 #[allow(dead_code)]
 pub(crate) mod output;
 pub use output::{
-    format_bytes, format_duration, shorten_function_name, MetricType, MetricsDataJson, MetricsJson,
-    MetricsProvider, ProfilingMode, Reporter, SamplesJson,
+    format_bytes, format_duration, shorten_function_name, FunctionLogsJson, FunctionsDataJson,
+    FunctionsJson, MetricType, MetricsProvider, ProfilingMode, Reporter,
 };
 
 #[cfg(not(feature = "hotpath-off"))]

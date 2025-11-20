@@ -193,24 +193,24 @@ impl fmt::Display for ProfilingMode {
     }
 }
 
-/// Response containing recent samples for a function
-/// Each sample is a tuple of (value, elapsed_nanos)
+/// Response containing recent logs for a function
+/// Each log entry is a tuple of (value, elapsed_nanos)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SamplesJson {
+pub struct FunctionLogsJson {
     pub function_name: String,
-    pub samples: Vec<(u64, u64)>,
+    pub logs: Vec<(u64, u64)>,
     pub count: usize,
 }
 
 /// JSON representation of profiling metrics.
 #[derive(Debug, Clone)]
-pub struct MetricsJson {
+pub struct FunctionsJson {
     pub hotpath_profiling_mode: ProfilingMode,
     pub total_elapsed: u64,
     pub description: String,
     pub caller_name: String,
     pub percentiles: Vec<u8>,
-    pub data: MetricsDataJson,
+    pub data: FunctionsDataJson,
 }
 
 #[derive(Deserialize)]
@@ -222,21 +222,21 @@ struct MetricsJsonRaw {
     output: serde_json::Value,
 }
 
-impl TryFrom<MetricsJsonRaw> for MetricsJson {
+impl TryFrom<MetricsJsonRaw> for FunctionsJson {
     type Error = serde::de::value::Error;
 
     fn try_from(raw: MetricsJsonRaw) -> Result<Self, Self::Error> {
         let percentiles =
             extract_percentiles_from_json(&raw.output).map_err(serde::de::Error::custom)?;
 
-        let output = MetricsDataJson::deserialize_with_mode(
+        let output = FunctionsDataJson::deserialize_with_mode(
             raw.output,
             &raw.hotpath_profiling_mode,
             &percentiles,
         )
         .map_err(serde::de::Error::custom)?;
 
-        Ok(MetricsJson {
+        Ok(FunctionsJson {
             hotpath_profiling_mode: raw.hotpath_profiling_mode,
             total_elapsed: raw.total_elapsed,
             description: raw.description,
@@ -247,7 +247,7 @@ impl TryFrom<MetricsJsonRaw> for MetricsJson {
     }
 }
 
-impl<'de> Deserialize<'de> for MetricsJson {
+impl<'de> Deserialize<'de> for FunctionsJson {
     fn deserialize<D>(de: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -259,7 +259,7 @@ impl<'de> Deserialize<'de> for MetricsJson {
 
 /// Structured per-function profiling metrics data.
 #[derive(Debug, Clone)]
-pub struct MetricsDataJson(pub HashMap<String, Vec<MetricType>>);
+pub struct FunctionsDataJson(pub HashMap<String, Vec<MetricType>>);
 
 fn build_headers(percentiles: &[u8]) -> Vec<String> {
     let mut headers = vec![
@@ -303,7 +303,7 @@ impl<'a> Serialize for MetricsDataSerializer<'a> {
     }
 }
 
-impl Serialize for MetricsJson {
+impl Serialize for FunctionsJson {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -358,7 +358,7 @@ fn extract_percentiles_from_json(
     }
 }
 
-impl MetricsDataJson {
+impl FunctionsDataJson {
     pub fn deserialize_with_mode(
         value: serde_json::Value,
         profiling_mode: &ProfilingMode,
@@ -393,7 +393,7 @@ impl MetricsDataJson {
             data.insert(function_name.clone(), row);
         }
 
-        Ok(MetricsDataJson(data))
+        Ok(FunctionsDataJson(data))
     }
 }
 
@@ -444,12 +444,12 @@ impl<'a> Serialize for FunctionDataSerializer<'a> {
     }
 }
 
-impl From<&dyn MetricsProvider<'_>> for MetricsJson {
+impl From<&dyn MetricsProvider<'_>> for FunctionsJson {
     fn from(metrics: &dyn MetricsProvider<'_>) -> Self {
         let hotpath_profiling_mode = Self::determine_profiling_mode();
         let percentiles = metrics.percentiles();
 
-        let sorted_entries = get_sorted_entries(metrics);
+        let sorted_entries = get_sorted_measurements(metrics);
         let data: HashMap<String, Vec<MetricType>> = sorted_entries.into_iter().collect();
 
         Self {
@@ -458,12 +458,12 @@ impl From<&dyn MetricsProvider<'_>> for MetricsJson {
             description: metrics.description(),
             caller_name: metrics.caller_name().to_string(),
             percentiles,
-            data: MetricsDataJson(data),
+            data: FunctionsDataJson(data),
         }
     }
 }
 
-impl MetricsJson {
+impl FunctionsJson {
     fn determine_profiling_mode() -> ProfilingMode {
         cfg_if::cfg_if! {
             if #[cfg(feature = "hotpath-alloc-bytes-total")] {
@@ -498,7 +498,7 @@ pub(crate) fn display_table(metrics_provider: &dyn MetricsProvider<'_>) {
 
     table.add_row(Row::new(header_cells));
 
-    let sorted_entries = get_sorted_entries(metrics_provider);
+    let sorted_entries = get_sorted_measurements(metrics_provider);
 
     for (function_name, metrics) in sorted_entries {
         let mut row_cells = Vec::new();
@@ -553,7 +553,7 @@ pub(crate) fn display_table(metrics_provider: &dyn MetricsProvider<'_>) {
     }
 }
 
-pub(crate) fn get_sorted_entries(
+pub(crate) fn get_sorted_measurements(
     metrics_provider: &dyn MetricsProvider<'_>,
 ) -> Vec<(String, Vec<MetricType>)> {
     let metric_data = metrics_provider.metric_data();
@@ -720,7 +720,7 @@ impl Reporter for JsonReporter {
             return Ok(());
         }
 
-        let json = MetricsJson::from(metrics_provider);
+        let json = FunctionsJson::from(metrics_provider);
         println!("{}", serde_json::to_string(&json).unwrap());
         Ok(())
     }
@@ -738,7 +738,7 @@ impl Reporter for JsonPrettyReporter {
             return Ok(());
         }
 
-        let json = MetricsJson::from(metrics_provider);
+        let json = FunctionsJson::from(metrics_provider);
         println!("{}", serde_json::to_string_pretty(&json)?);
         Ok(())
     }
@@ -780,7 +780,7 @@ mod tests {
             }
         }"#;
 
-        let metrics: MetricsJson =
+        let metrics: FunctionsJson =
             serde_json::from_str(json_str).expect("Failed to deserialize timing mode JSON");
 
         assert!(matches!(
@@ -835,7 +835,7 @@ mod tests {
             }
         }"#;
 
-        let metrics: MetricsJson = serde_json::from_str(json_str)
+        let metrics: FunctionsJson = serde_json::from_str(json_str)
             .expect("Failed to deserialize alloc-count-total mode JSON");
 
         assert!(matches!(
@@ -886,7 +886,7 @@ mod tests {
             }
         }"#;
 
-        let metrics: MetricsJson = serde_json::from_str(json_str)
+        let metrics: FunctionsJson = serde_json::from_str(json_str)
             .expect("Failed to deserialize alloc-bytes-total mode JSON");
 
         assert!(matches!(
@@ -925,7 +925,7 @@ mod tests {
             }
         }"#;
 
-        let metrics: MetricsJson =
+        let metrics: FunctionsJson =
             serde_json::from_str(original_json_str).expect("Failed to deserialize");
         let serialized_str = serde_json::to_string(&metrics).expect("Failed to serialize");
 
@@ -952,7 +952,7 @@ mod tests {
             }
         }"#;
 
-        let metrics: MetricsJson = serde_json::from_str(json_str).expect("Failed to deserialize");
+        let metrics: FunctionsJson = serde_json::from_str(json_str).expect("Failed to deserialize");
 
         // Verify that the internal structure is correctly parsed
         assert_eq!(metrics.percentiles, vec![95]);

@@ -1,4 +1,5 @@
-use super::super::app::App;
+use super::super::super::app::App;
+use super::super::super::widgets::formatters::format_time_ago;
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
@@ -8,13 +9,13 @@ use ratatui::{
     Frame,
 };
 
-pub(crate) fn render_samples_panel(frame: &mut Frame, area: Rect, app: &App) {
-    let title = if let Some(ref samples) = app.current_samples {
-        format!(" {} ", samples.function_name)
+pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &App) {
+    let title = if let Some(ref function_logs) = app.current_function_logs {
+        format!(" {} ", function_logs.function_name)
     } else if app.selected_function_name().is_some() {
         " Loading... ".to_string()
     } else {
-        " Recent Samples ".to_string()
+        " Recent Logs ".to_string()
     };
 
     let border_type = BorderType::Plain;
@@ -30,7 +31,7 @@ pub(crate) fn render_samples_panel(frame: &mut Frame, area: Rect, app: &App) {
                 .add_modifier(Modifier::BOLD),
         ));
 
-    if let Some(ref samples_data) = app.current_samples {
+    if let Some(ref function_logs_data) = app.current_function_logs {
         let headers = Row::new(vec![
             Cell::from("Index").style(
                 Style::default()
@@ -49,15 +50,15 @@ pub(crate) fn render_samples_panel(frame: &mut Frame, area: Rect, app: &App) {
             ),
         ]);
 
-        let rows: Vec<Row> = samples_data
-            .samples
+        let rows: Vec<Row> = function_logs_data
+            .logs
             .iter()
             .enumerate()
             .map(|(idx, &(value, elapsed_nanos))| {
                 let formatted_value =
-                    format_sample_value(value, &app.metrics.hotpath_profiling_mode);
+                    format_log_value(value, &app.functions.hotpath_profiling_mode);
 
-                let total_elapsed = app.metrics.total_elapsed;
+                let total_elapsed = app.functions.total_elapsed;
                 let time_ago_str = if total_elapsed >= elapsed_nanos {
                     let nanos_ago = total_elapsed - elapsed_nanos;
                     format_time_ago(nanos_ago)
@@ -86,11 +87,11 @@ pub(crate) fn render_samples_panel(frame: &mut Frame, area: Rect, app: &App) {
 
         frame.render_widget(table, area);
     } else if app.selected_function_name().is_some() {
-        // No samples yet
+        // No logs yet
         let items = vec![
             ListItem::new(Line::from("")),
             ListItem::new(Line::from(Span::styled(
-                "  Loading samples...",
+                "  Loading logs...",
                 Style::default().fg(Color::Gray),
             ))),
         ];
@@ -106,7 +107,7 @@ pub(crate) fn render_samples_panel(frame: &mut Frame, area: Rect, app: &App) {
             ))),
             ListItem::new(Line::from("")),
             ListItem::new(Line::from(Span::styled(
-                "  Navigate the function list to see samples.",
+                "  Navigate the function list to see logs.",
                 Style::default().fg(Color::DarkGray),
             ))),
         ];
@@ -115,43 +116,12 @@ pub(crate) fn render_samples_panel(frame: &mut Frame, area: Rect, app: &App) {
     }
 }
 
-fn format_sample_value(value: u64, profiling_mode: &hotpath::ProfilingMode) -> String {
+fn format_log_value(value: u64, profiling_mode: &hotpath::ProfilingMode) -> String {
     match profiling_mode {
         hotpath::ProfilingMode::Timing => hotpath::format_duration(value),
         hotpath::ProfilingMode::AllocBytesTotal => hotpath::format_bytes(value),
         hotpath::ProfilingMode::AllocCountTotal => {
             format!("{}", value)
-        }
-    }
-}
-
-fn format_time_ago(nanos_ago: u64) -> String {
-    const NANOS_PER_SEC: u64 = 1_000_000_000;
-    const NANOS_PER_MIN: u64 = 60 * NANOS_PER_SEC;
-    const NANOS_PER_HOUR: u64 = 60 * NANOS_PER_MIN;
-
-    if nanos_ago < NANOS_PER_SEC {
-        "now".to_string()
-    } else if nanos_ago < NANOS_PER_MIN {
-        let secs = nanos_ago / NANOS_PER_SEC;
-        if secs == 1 {
-            "1s ago".to_string()
-        } else {
-            format!("{}s ago", secs)
-        }
-    } else if nanos_ago < NANOS_PER_HOUR {
-        let mins = nanos_ago / NANOS_PER_MIN;
-        if mins == 1 {
-            "1m ago".to_string()
-        } else {
-            format!("{}m ago", mins)
-        }
-    } else {
-        let hours = nanos_ago / NANOS_PER_HOUR;
-        if hours == 1 {
-            "1h ago".to_string()
-        } else {
-            format!("{}h ago", hours)
         }
     }
 }

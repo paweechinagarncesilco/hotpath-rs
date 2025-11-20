@@ -3,7 +3,7 @@ mod comment;
 use clap::Parser;
 use comment::upsert_pr_comment;
 use eyre::Result;
-use hotpath::{format_bytes, MetricsJson};
+use hotpath::{format_bytes, FunctionsJson};
 use prettytable::{Cell, Row, Table};
 use std::env;
 use std::fmt;
@@ -46,9 +46,9 @@ impl ProfilePrArgs {
             Some(self.emoji_threshold.unwrap_or(20))
         };
 
-        let head_metrics_data: MetricsJson = serde_json::from_str(&self.head_metrics)
+        let head_metrics_data: FunctionsJson = serde_json::from_str(&self.head_metrics)
             .map_err(|e| eyre::eyre!("Failed to deserialize head metrics: {}", e))?;
-        let base_metrics_data: MetricsJson = serde_json::from_str(&self.base_metrics)
+        let base_metrics_data: FunctionsJson = serde_json::from_str(&self.base_metrics)
             .map_err(|e| eyre::eyre!("Failed to deserialize base metrics: {}", e))?;
 
         let comparison = compare_metrics(&base_metrics_data, &head_metrics_data);
@@ -182,7 +182,10 @@ fn calculate_percentage_diff(before: u64, after: u64) -> f64 {
     }
 }
 
-fn compare_metrics(before_metrics: &MetricsJson, after_metrics: &MetricsJson) -> MetricsComparison {
+fn compare_metrics(
+    before_metrics: &FunctionsJson,
+    after_metrics: &FunctionsJson,
+) -> MetricsComparison {
     use hotpath::MetricType;
 
     let total_elapsed_diff =
@@ -319,7 +322,7 @@ fn compare_metrics(before_metrics: &MetricsJson, after_metrics: &MetricsJson) ->
 
 fn format_comparison_markdown(
     comparison: &MetricsComparison,
-    metrics: &MetricsJson,
+    metrics: &FunctionsJson,
     emoji_threshold: Option<u32>,
 ) -> String {
     let mut markdown = String::new();
@@ -387,8 +390,8 @@ fn format_comparison_markdown(
 mod test {
     use super::*;
     use hotpath::{
+        FunctionsDataJson,
         MetricType::{CallsCount, DurationNs, Percentage},
-        MetricsDataJson,
     };
 
     #[test]
@@ -427,13 +430,13 @@ mod test {
             ],
         );
 
-        let pr_metrics = MetricsJson {
+        let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 140515884,
             caller_name: "basic::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(pr_data),
+            data: FunctionsDataJson(pr_data),
         };
 
         let mut main_data = HashMap::new();
@@ -468,13 +471,13 @@ mod test {
             ],
         );
 
-        let main_metrics = MetricsJson {
+        let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 126464296,
             caller_name: "basic::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(main_data),
+            data: FunctionsDataJson(main_data),
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);
@@ -510,13 +513,13 @@ mod test {
             ],
         );
 
-        let pr_metrics = MetricsJson {
+        let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 100000000,
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(pr_data),
+            data: FunctionsDataJson(pr_data),
         };
 
         let mut main_data = HashMap::new();
@@ -541,13 +544,13 @@ mod test {
             ],
         );
 
-        let main_metrics = MetricsJson {
+        let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 120000000,
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(main_data),
+            data: FunctionsDataJson(main_data),
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);
@@ -601,13 +604,13 @@ mod test {
             ],
         );
 
-        let pr_metrics = MetricsJson {
+        let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 150000000,
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(pr_data),
+            data: FunctionsDataJson(pr_data),
         };
 
         let mut main_data = HashMap::new();
@@ -622,13 +625,13 @@ mod test {
             ],
         );
 
-        let main_metrics = MetricsJson {
+        let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 120000000,
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(main_data),
+            data: FunctionsDataJson(main_data),
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);
@@ -683,13 +686,13 @@ mod test {
             ],
         );
 
-        let pr_metrics = MetricsJson {
+        let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 140000000,
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(pr_data),
+            data: FunctionsDataJson(pr_data),
         };
 
         // Base has function_a (updated) and function_b (removed)
@@ -715,13 +718,13 @@ mod test {
             ],
         );
 
-        let main_metrics = MetricsJson {
+        let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
             total_elapsed: 120000000,
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: MetricsDataJson(main_data),
+            data: FunctionsDataJson(main_data),
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);

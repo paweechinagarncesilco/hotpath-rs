@@ -15,7 +15,7 @@ pub struct FunctionStats {
     hist: Option<Histogram<u64>>,
     pub has_data: bool,
     pub wrapper: bool,
-    pub recent_samples: VecDeque<(u64, Duration)>,
+    pub recent_logs: VecDeque<(u64, Duration)>,
 }
 
 impl FunctionStats {
@@ -27,13 +27,13 @@ impl FunctionStats {
         first_ns: u64,
         elapsed: Duration,
         wrapper: bool,
-        recent_samples_limit: usize,
+        recent_logs_limit: usize,
     ) -> Self {
         let hist = Histogram::<u64>::new_with_bounds(Self::LOW_NS, Self::HIGH_NS, Self::SIGFIGS)
             .expect("hdrhistogram init");
 
-        let mut recent_samples = VecDeque::with_capacity(recent_samples_limit);
-        recent_samples.push_back((first_ns, elapsed));
+        let mut recent_logs = VecDeque::with_capacity(recent_logs_limit);
+        recent_logs.push_back((first_ns, elapsed));
 
         let mut s = Self {
             total_duration_ns: first_ns,
@@ -41,7 +41,7 @@ impl FunctionStats {
             hist: Some(hist),
             has_data: true,
             wrapper,
-            recent_samples,
+            recent_logs,
         };
         s.record_time(first_ns);
         s
@@ -60,12 +60,11 @@ impl FunctionStats {
         self.count += 1;
         self.record_time(duration_ns);
 
-        if self.recent_samples.len() == self.recent_samples.capacity()
-            && self.recent_samples.capacity() > 0
+        if self.recent_logs.len() == self.recent_logs.capacity() && self.recent_logs.capacity() > 0
         {
-            self.recent_samples.pop_front();
+            self.recent_logs.pop_front();
         }
-        self.recent_samples.push_back((duration_ns, elapsed));
+        self.recent_logs.push_back((duration_ns, elapsed));
     }
 
     pub fn avg_duration_ns(&self) -> u64 {
@@ -101,7 +100,7 @@ pub(crate) struct HotPathState {
 pub(crate) fn process_measurement(
     stats: &mut HashMap<&'static str, FunctionStats>,
     m: Measurement,
-    recent_samples_limit: usize,
+    recent_logs_limit: usize,
 ) {
     match m {
         Measurement::Duration(duration_ns, elapsed, name, wrapper) => {
@@ -110,12 +109,7 @@ pub(crate) fn process_measurement(
             } else {
                 stats.insert(
                     name,
-                    FunctionStats::new_duration(
-                        duration_ns,
-                        elapsed,
-                        wrapper,
-                        recent_samples_limit,
-                    ),
+                    FunctionStats::new_duration(duration_ns, elapsed, wrapper, recent_logs_limit),
                 );
             }
         }

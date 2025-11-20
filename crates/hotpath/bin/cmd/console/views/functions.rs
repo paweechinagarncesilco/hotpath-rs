@@ -1,3 +1,5 @@
+pub(crate) mod logs;
+
 use super::super::app::App;
 use ratatui::{
     layout::{Constraint, Rect},
@@ -11,7 +13,7 @@ use ratatui::{
 pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rect) {
     let title = format!(
         " {} - {} ",
-        app.metrics.caller_name, app.metrics.description
+        app.functions.caller_name, app.functions.description
     );
 
     let header_cells = vec![
@@ -21,7 +23,7 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
     ]
     .into_iter()
     .chain(
-        app.metrics
+        app.functions
             .percentiles
             .iter()
             .map(|p| format!("P{}", p))
@@ -39,7 +41,7 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
 
     let header = Row::new(header_cells).height(1);
 
-    let entries = app.get_sorted_entries();
+    let entries = app.get_sorted_measurements();
 
     let rows = entries.iter().map(|(function_name, metrics)| {
         let short_name = hotpath::shorten_function_name(function_name);
@@ -54,7 +56,7 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
     let border_type = BorderType::Thick;
     let block_style = Style::default();
 
-    let num_percentiles = app.metrics.percentiles.len();
+    let num_percentiles = app.functions.percentiles.len();
 
     let function_pct: u16 = 35;
     let remaining_pct: u16 = 100 - function_pct;

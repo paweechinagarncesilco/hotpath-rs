@@ -16,7 +16,7 @@ pub struct FunctionStats {
     pub has_unsupported_async: bool,
     pub wrapper: bool,
     pub cross_thread: bool,
-    pub recent_samples: VecDeque<(u64, Duration)>,
+    pub recent_logs: VecDeque<(u64, Duration)>,
 }
 
 impl FunctionStats {
@@ -30,14 +30,14 @@ impl FunctionStats {
         unsupported_async: bool,
         wrapper: bool,
         cross_thread: bool,
-        recent_samples_limit: usize,
+        recent_logs_limit: usize,
     ) -> Self {
         let count_total_hist =
             Histogram::<u64>::new_with_bounds(Self::LOW_COUNT, Self::HIGH_COUNT, Self::SIGFIGS)
                 .expect("count_total histogram init");
 
-        let mut recent_samples = VecDeque::with_capacity(recent_samples_limit);
-        recent_samples.push_back((count_total, elapsed));
+        let mut recent_logs = VecDeque::with_capacity(recent_logs_limit);
+        recent_logs.push_back((count_total, elapsed));
 
         let mut s = Self {
             count: 1,
@@ -46,7 +46,7 @@ impl FunctionStats {
             has_unsupported_async: unsupported_async,
             wrapper,
             cross_thread,
-            recent_samples,
+            recent_logs,
         };
         s.record_alloc(count_total);
         s
@@ -74,12 +74,11 @@ impl FunctionStats {
         self.cross_thread |= cross_thread;
         self.record_alloc(count_total);
 
-        if self.recent_samples.len() == self.recent_samples.capacity()
-            && self.recent_samples.capacity() > 0
+        if self.recent_logs.len() == self.recent_logs.capacity() && self.recent_logs.capacity() > 0
         {
-            self.recent_samples.pop_front();
+            self.recent_logs.pop_front();
         }
-        self.recent_samples.push_back((count_total, elapsed));
+        self.recent_logs.push_back((count_total, elapsed));
     }
 
     #[inline]
@@ -128,7 +127,7 @@ pub(crate) struct HotPathState {
 pub(crate) fn process_measurement(
     stats: &mut HashMap<&'static str, FunctionStats>,
     m: Measurement,
-    recent_samples_limit: usize,
+    recent_logs_limit: usize,
 ) {
     match m {
         Measurement::Allocation(
@@ -150,7 +149,7 @@ pub(crate) fn process_measurement(
                         unsupported_async,
                         wrapper,
                         cross_thread,
-                        recent_samples_limit,
+                        recent_logs_limit,
                     ),
                 );
             }
