@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2025-11-22
+
+### 🚀 Features
+
+- Merge channels-console crate
+- Show channels data in TUI
+- Show streams data in TUI
+- Add StreamsGuard, rearrange modules
+- Unify alloc feature flags
+
+### 🐛 Bug Fixes
+
+- Improve memory metric display
+
+### ⚙️ Miscellaneous Tasks
+
+- Restore endpoint tests, add justfile
+- Release 0.7.0
+
 ## [0.6.0] - 2025-11-15
 
 ### 🚀 Features
