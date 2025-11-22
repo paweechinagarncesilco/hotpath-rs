@@ -1,29 +1,45 @@
-use super::super::super::app::App;
 use super::super::super::widgets::formatters::format_time_ago;
+use hotpath::{FunctionLogsJson, ProfilingMode};
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
+    symbols::border,
     text::{Line, Span},
-    widgets::block::BorderType,
-    widgets::{Block, Cell, List, ListItem, Row, Table},
+    widgets::{Block, Cell, HighlightSpacing, List, ListItem, Row, Table, TableState},
     Frame,
 };
 
-pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &App) {
-    let title = if let Some(ref function_logs) = app.current_function_logs {
+pub(crate) fn render_function_logs_panel(
+    current_function_logs: Option<&FunctionLogsJson>,
+    selected_function_name: Option<&str>,
+    profiling_mode: &ProfilingMode,
+    total_elapsed: u64,
+    area: Rect,
+    frame: &mut Frame,
+    table_state: &mut TableState,
+    is_focused: bool,
+) {
+    let title = if let Some(ref function_logs) = current_function_logs {
         format!(" {} ", function_logs.function_name)
-    } else if app.selected_function_name().is_some() {
+    } else if selected_function_name.is_some() {
         " Loading... ".to_string()
     } else {
         " Recent Logs ".to_string()
     };
 
-    let border_type = BorderType::Plain;
-    let block_style = Style::default();
+    let border_set = if is_focused {
+        border::THICK
+    } else {
+        border::PLAIN
+    };
 
     let block = Block::bordered()
-        .border_type(border_type)
-        .style(block_style)
+        .border_set(border_set)
+        .border_style(if is_focused {
+            Style::default()
+        } else {
+            Style::default().fg(Color::DarkGray)
+        })
         .title(Span::styled(
             title,
             Style::default()
@@ -31,11 +47,8 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
                 .add_modifier(Modifier::BOLD),
         ));
 
-    if let Some(ref function_logs_data) = app.current_function_logs {
-        let is_alloc_mode = matches!(
-            app.functions.hotpath_profiling_mode,
-            hotpath::ProfilingMode::Alloc
-        );
+    if let Some(ref function_logs_data) = current_function_logs {
+        let is_alloc_mode = matches!(profiling_mode, &ProfilingMode::Alloc);
 
         let headers = if is_alloc_mode {
             Row::new(vec![
@@ -95,7 +108,6 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
             .iter()
             .enumerate()
             .map(|(idx, &(value, elapsed_nanos, count, tid))| {
-                let total_elapsed = app.functions.total_elapsed;
                 let time_ago_str = if total_elapsed >= elapsed_nanos {
                     let nanos_ago = total_elapsed - elapsed_nanos;
                     format_time_ago(nanos_ago)
@@ -146,13 +158,20 @@ pub(crate) fn render_function_logs_panel(frame: &mut Frame, area: Rect, app: &Ap
             .as_slice()
         };
 
+        let selected_row_style = Style::default()
+            .bg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD);
+
         let table = Table::new(rows, widths)
             .header(headers)
             .block(block)
-            .column_spacing(2);
+            .column_spacing(2)
+            .row_highlight_style(selected_row_style)
+            .highlight_symbol(">> ")
+            .highlight_spacing(HighlightSpacing::Always);
 
-        frame.render_widget(table, area);
-    } else if app.selected_function_name().is_some() {
+        frame.render_stateful_widget(table, area, table_state);
+    } else if selected_function_name.is_some() {
         // No logs yet
         let items = vec![
             ListItem::new(Line::from("")),

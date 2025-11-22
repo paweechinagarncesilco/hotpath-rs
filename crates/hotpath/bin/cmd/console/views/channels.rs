@@ -9,7 +9,6 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
     symbols::border,
-    text::Text,
     widgets::{Block, Cell, HighlightSpacing, Row, Table, TableState},
     Frame,
 };
@@ -67,7 +66,7 @@ pub(crate) fn render_channels_panel(
             };
             let queue_cell = queue_status(stat.queued, &stat.channel_type, 8);
 
-            let row = Row::new(vec![
+            Row::new(vec![
                 Cell::from(truncate_left(&stat.label, channel_width)),
                 Cell::from(stat.channel_type.to_string()),
                 Cell::from(state_text).style(state_style),
@@ -75,14 +74,7 @@ pub(crate) fn render_channels_panel(
                 Cell::from(stat.received_count.to_string()),
                 queue_cell,
                 mem_cell,
-            ]);
-
-            // Dim the row if logs are shown and channels table is not focused
-            if show_logs && !matches!(focus, ChannelsFocus::Channels) {
-                row.style(Style::default().fg(Color::DarkGray))
-            } else {
-                row
-            }
+            ])
         })
         .collect();
 
@@ -97,8 +89,8 @@ pub(crate) fn render_channels_panel(
     ];
 
     let selected_row_style = Style::default()
-        .add_modifier(Modifier::REVERSED)
-        .bg(Color::DarkGray);
+        .bg(Color::DarkGray)
+        .add_modifier(Modifier::BOLD);
 
     let table_block = if show_logs {
         let border_set = if focus == ChannelsFocus::Channels {
@@ -109,7 +101,7 @@ pub(crate) fn render_channels_panel(
         Block::bordered()
             .title(format!(" [{}/{}] ", channel_position, total_channels))
             .border_set(border_set)
-            .style(if focus == ChannelsFocus::Channels {
+            .border_style(if focus == ChannelsFocus::Channels {
                 Style::default()
             } else {
                 Style::default().fg(Color::DarkGray)
@@ -125,7 +117,7 @@ pub(crate) fn render_channels_panel(
         .block(table_block)
         .column_spacing(1)
         .row_highlight_style(selected_row_style)
-        .highlight_symbol(Text::from(">"))
+        .highlight_symbol(">> ")
         .highlight_spacing(HighlightSpacing::Always);
 
     frame.render_stateful_widget(table, area, table_state);

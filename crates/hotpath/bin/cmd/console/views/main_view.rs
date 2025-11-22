@@ -1,4 +1,4 @@
-use super::super::app::{App, ChannelsFocus, SelectedTab, StreamsFocus};
+use super::super::app::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
 use super::channels::{inspect, logs as channel_logs};
 use super::functions::logs;
 use super::streams::{inspect as stream_inspect, logs as stream_logs};
@@ -50,7 +50,16 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
                     .split(main_chunks[2]);
 
                 functions::render_functions_table(frame, app, content_chunks[0]);
-                logs::render_function_logs_panel(frame, content_chunks[1], app);
+                logs::render_function_logs_panel(
+                    app.current_function_logs.as_ref(),
+                    app.selected_function_name().as_deref(),
+                    &app.functions.hotpath_profiling_mode,
+                    app.functions.total_elapsed,
+                    content_chunks[1],
+                    frame,
+                    &mut app.function_logs_table_state,
+                    app.functions_focus == FunctionsFocus::Logs,
+                );
             } else {
                 functions::render_functions_table(frame, app, main_chunks[2]);
             }
@@ -69,6 +78,7 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
         app.selected_tab,
         app.channels_focus,
         app.streams_focus,
+        app.functions_focus,
     );
 }
 
@@ -312,6 +322,11 @@ fn render_streams_view(frame: &mut Frame, app: &mut App, area: Rect) {
 
 fn render_tabs(frame: &mut Frame, area: ratatui::layout::Rect, selected_tab: SelectedTab) {
     let create_tab_line = |tab: SelectedTab| {
+        let name = if tab == selected_tab {
+            format!(" {}*", tab.name())
+        } else {
+            format!(" {} ", tab.name())
+        };
         Line::from(vec![
             Span::styled(
                 format!("[{}]", tab.number()),
@@ -319,7 +334,7 @@ fn render_tabs(frame: &mut Frame, area: ratatui::layout::Rect, selected_tab: Sel
                     .fg(Color::Blue)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(format!(" {}", tab.name()), Style::default().fg(Color::Gray)),
+            Span::styled(name, Style::default().fg(Color::Gray)),
         ])
     };
 

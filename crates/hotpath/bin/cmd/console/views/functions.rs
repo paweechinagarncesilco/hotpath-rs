@@ -1,11 +1,11 @@
 pub(crate) mod logs;
 
-use super::super::app::App;
+use super::super::app::{App, FunctionsFocus};
 use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
+    symbols::border,
     text::Span,
-    widgets::block::BorderType,
     widgets::{Block, Cell, Row, Table},
     Frame,
 };
@@ -53,8 +53,8 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
         Row::new(cells)
     });
 
-    let border_type = BorderType::Thick;
-    let block_style = Style::default();
+    let show_logs = app.show_function_logs;
+    let focus = app.functions_focus;
 
     let num_percentiles = app.functions.percentiles.len();
 
@@ -79,17 +79,35 @@ pub(crate) fn render_functions_table(frame: &mut Frame, app: &mut App, area: Rec
             .collect::<Vec<_>>(),
     )
     .header(header)
-    .block(
+    .block(if show_logs {
+        let border_set = if focus == FunctionsFocus::Functions {
+            border::THICK
+        } else {
+            border::PLAIN
+        };
         Block::bordered()
-            .border_type(border_type)
-            .style(block_style)
+            .border_set(border_set)
+            .border_style(if focus == FunctionsFocus::Functions {
+                Style::default()
+            } else {
+                Style::default().fg(Color::DarkGray)
+            })
             .title(Span::styled(
                 title,
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
-            )),
-    )
+            ))
+    } else {
+        Block::bordered()
+            .border_set(border::THICK)
+            .title(Span::styled(
+                title,
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ))
+    })
     .row_highlight_style(
         Style::default()
             .bg(Color::DarkGray)

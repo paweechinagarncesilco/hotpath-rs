@@ -1,6 +1,6 @@
 //! Keyboard input handling
 
-use super::{App, ChannelsFocus, SelectedTab, StreamsFocus};
+use super::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
 use crossterm::event::KeyCode;
 
 impl App {
@@ -51,6 +51,8 @@ impl App {
                     } else {
                         self.focus_streams();
                     }
+                } else if self.selected_tab == SelectedTab::Functions {
+                    self.focus_functions();
                 }
             }
             KeyCode::Right | KeyCode::Char('l') => {
@@ -58,6 +60,8 @@ impl App {
                     self.focus_logs();
                 } else if self.selected_tab == SelectedTab::Streams {
                     self.focus_stream_logs();
+                } else if self.selected_tab == SelectedTab::Functions {
+                    self.focus_function_logs();
                 }
             }
             KeyCode::Char('i') | KeyCode::Char('I') => {
@@ -78,9 +82,14 @@ impl App {
                         StreamsFocus::Streams => self.select_next_stream(),
                         StreamsFocus::Logs | StreamsFocus::Inspect => self.select_next_stream_log(),
                     }
-                } else {
-                    self.next_function();
-                    self.update_and_fetch_function_logs(self.metrics_port);
+                } else if self.selected_tab == SelectedTab::Functions {
+                    match self.functions_focus {
+                        FunctionsFocus::Functions => {
+                            self.next_function();
+                            self.update_and_fetch_function_logs(self.metrics_port);
+                        }
+                        FunctionsFocus::Logs => self.select_next_function_log(),
+                    }
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
@@ -96,9 +105,14 @@ impl App {
                             self.select_previous_stream_log()
                         }
                     }
-                } else {
-                    self.previous_function();
-                    self.update_and_fetch_function_logs(self.metrics_port);
+                } else if self.selected_tab == SelectedTab::Functions {
+                    match self.functions_focus {
+                        FunctionsFocus::Functions => {
+                            self.previous_function();
+                            self.update_and_fetch_function_logs(self.metrics_port);
+                        }
+                        FunctionsFocus::Logs => self.select_previous_function_log(),
+                    }
                 }
             }
             _ => {}

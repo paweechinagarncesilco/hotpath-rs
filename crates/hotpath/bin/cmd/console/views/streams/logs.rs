@@ -4,7 +4,6 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     symbols::border,
-    text::Text,
     widgets::{Block, HighlightSpacing, Row, Table, TableState},
     Frame,
 };
@@ -53,7 +52,7 @@ pub(crate) fn render_logs_panel(
     let block = Block::bordered()
         .title(format!(" {} ", stream_label))
         .border_set(border_set)
-        .style(if is_focused {
+        .border_style(if is_focused {
             Style::default()
         } else {
             Style::default().fg(Color::DarkGray)
@@ -94,13 +93,13 @@ pub(crate) fn render_logs_panel(
     ];
 
     let selected_row_style = Style::default()
-        .add_modifier(Modifier::REVERSED)
-        .bg(Color::DarkGray);
+        .bg(Color::DarkGray)
+        .add_modifier(Modifier::BOLD);
 
     let table = Table::new(rows, widths)
         .header(header)
         .row_highlight_style(selected_row_style)
-        .highlight_symbol(Text::from(">"))
+        .highlight_symbol(">> ")
         .highlight_spacing(HighlightSpacing::Always);
 
     frame.render_stateful_widget(table, inner_area, table_state);

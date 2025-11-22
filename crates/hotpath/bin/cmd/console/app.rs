@@ -60,6 +60,13 @@ pub(crate) enum StreamsFocus {
     Inspect,
 }
 
+/// Represents which UI component has focus in the Functions tab
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FunctionsFocus {
+    Functions,
+    Logs,
+}
+
 /// Cached logs with a lookup map for received entries
 pub(crate) struct CachedLogs {
     pub(crate) logs: ChannelLogs,
@@ -105,6 +112,10 @@ pub(crate) struct App {
     pub(crate) error_message: Option<String>,
 
     // Function logs panel (Functions tab)
+    /// Selection state for function logs table
+    pub(crate) function_logs_table_state: TableState,
+    /// Which component has focus in Functions tab
+    pub(crate) functions_focus: FunctionsFocus,
     /// Whether function logs panel is visible
     pub(crate) show_function_logs: bool,
     /// Current function logs data for selected function
@@ -176,6 +187,8 @@ impl App {
             last_refresh: Instant::now(),
             last_successful_fetch: None,
             error_message: None,
+            function_logs_table_state: TableState::default(),
+            functions_focus: FunctionsFocus::Functions,
             show_function_logs: false,
             current_function_logs: None,
             pinned_function: None,

@@ -1,6 +1,6 @@
 //! UI state management - navigation, selection, and focus handling
 
-use super::{App, ChannelsFocus, SelectedTab, StreamsFocus};
+use super::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
 
 impl App {
     pub(crate) fn next_function(&mut self) {
@@ -202,6 +202,52 @@ impl App {
         } else {
             // Clear pinned function when closing function logs panel
             self.pinned_function = None;
+            self.function_logs_table_state.select(None);
+            self.functions_focus = FunctionsFocus::Functions;
+        }
+    }
+
+    pub(crate) fn focus_functions(&mut self) {
+        self.functions_focus = FunctionsFocus::Functions;
+        self.function_logs_table_state.select(None);
+    }
+
+    pub(crate) fn focus_function_logs(&mut self) {
+        if !self.show_function_logs {
+            self.toggle_function_logs();
+        } else if let Some(ref function_logs) = self.current_function_logs {
+            if !function_logs.logs.is_empty() {
+                self.functions_focus = FunctionsFocus::Logs;
+                if self.function_logs_table_state.selected().is_none() {
+                    self.function_logs_table_state.select(Some(0));
+                }
+            }
+        }
+    }
+
+    pub(crate) fn select_previous_function_log(&mut self) {
+        if let Some(ref function_logs) = self.current_function_logs {
+            let log_count = function_logs.logs.len();
+            if log_count > 0 {
+                let i = match self.function_logs_table_state.selected() {
+                    Some(i) => i.saturating_sub(1),
+                    None => 0,
+                };
+                self.function_logs_table_state.select(Some(i));
+            }
+        }
+    }
+
+    pub(crate) fn select_next_function_log(&mut self) {
+        if let Some(ref function_logs) = self.current_function_logs {
+            let log_count = function_logs.logs.len();
+            if log_count > 0 {
+                let i = match self.function_logs_table_state.selected() {
+                    Some(i) => (i + 1).min(log_count - 1),
+                    None => 0,
+                };
+                self.function_logs_table_state.select(Some(i));
+            }
         }
     }
 
