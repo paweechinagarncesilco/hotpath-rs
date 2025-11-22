@@ -1,6 +1,6 @@
 [package]
 name = "hotpath"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 repository = "https://github.com/pawurb/hotpath"
 description = "All-in-one Rust performance debug toolkit. Live profiling for allocations, latency, and data flows across channels and streams."
