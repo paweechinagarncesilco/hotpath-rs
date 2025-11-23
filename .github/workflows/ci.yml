@@ -63,14 +63,10 @@ jobs:
       - name: Run CLI tests
         run: | 
           cargo test -p hotpath --bin hotpath
-      - name: Run integration tests
+      - name: Run functions tests
         run: |
-          cargo test --test hotpath_integration -- --nocapture --test-threads=1
-      - name: Run integration tests
-        run: |
-          cargo test --test hotpath_integration -- --nocapture --test-threads=1
-
-      - name: Run streams integration tests
+          cargo test --test functions -- --nocapture --test-threads=1
+      - name: Run streams tests
         run: |
           cargo test --test streams -- --nocapture --test-threads=1
       - name: Run channels crossbeam tests

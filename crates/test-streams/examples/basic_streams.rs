@@ -43,5 +43,11 @@ fn main() {
 
         // Give stats collector time to process final events
         Timer::after(Duration::from_millis(100)).await;
+
+        if let Ok(secs) = std::env::var("TEST_SLEEP_SECONDS") {
+            if let Ok(duration) = secs.parse::<u64>() {
+                std::thread::sleep(Duration::from_secs(duration));
+            }
+        }
     })
 }

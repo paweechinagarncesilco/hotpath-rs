@@ -65,5 +65,11 @@ async fn main() {
         println!("[Receiver] Received message: {}", msg);
     }
 
+    if let Ok(secs) = std::env::var("TEST_SLEEP_SECONDS") {
+        if let Ok(duration) = secs.parse::<u64>() {
+            tokio::time::sleep(std::time::Duration::from_secs(duration)).await;
+        }
+    }
+
     println!("\nExample completed!");
 }

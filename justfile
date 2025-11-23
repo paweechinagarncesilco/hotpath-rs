@@ -6,7 +6,7 @@ default:
 
 # Start the server with asset timestamping and environment setup
 test_all:
-    cargo test --test hotpath_integration -- --nocapture --test-threads=1
+    cargo test --test functions -- --nocapture --test-threads=1
     cargo test --test streams -- --nocapture --test-threads=1
     cargo test --test channels_crossbeam -- --nocapture --test-threads=1
     cargo test --test channels_futures -- --nocapture --test-threads=1

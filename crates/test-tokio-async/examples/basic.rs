@@ -40,5 +40,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    if let Ok(sleep_seconds) = std::env::var("TEST_SLEEP_SECONDS") {
+        if let Ok(seconds) = sleep_seconds.parse::<u64>() {
+            tokio::time::sleep(Duration::from_secs(seconds)).await;
+        }
+    }
+
     Ok(())
 }

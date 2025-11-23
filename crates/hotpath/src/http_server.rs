@@ -215,7 +215,6 @@ fn get_function_logs_timing(function_name: &str) -> Option<FunctionLogsJson> {
             .ok()?;
         drop(state_guard);
 
-        // Receive the response - it will be Some(FunctionLogsJson) or None
         response_rx
             .recv_timeout(Duration::from_millis(250))
             .ok()
@@ -243,7 +242,6 @@ fn get_function_logs_alloc(function_name: &str) -> Option<FunctionLogsJson> {
             .ok()?;
         drop(state_guard);
 
-        // Receive the response - it will be Some(FunctionLogsJson) or None
         response_rx
             .recv_timeout(Duration::from_millis(250))
             .ok()
@@ -251,11 +249,6 @@ fn get_function_logs_alloc(function_name: &str) -> Option<FunctionLogsJson> {
     } else {
         None
     }
-}
-
-fn get_functions_alloc_json() -> Option<FunctionsJson> {
-    // Returns None if hotpath-alloc feature is not enabled, Some(data) otherwise
-    try_get_functions_alloc_from_worker()
 }
 
 fn get_functions_timing_json() -> FunctionsJson {
@@ -274,7 +267,7 @@ fn get_functions_timing_json() -> FunctionsJson {
     }
 }
 
-fn try_get_functions_alloc_from_worker() -> Option<FunctionsJson> {
+fn get_functions_alloc_json() -> Option<FunctionsJson> {
     let arc_swap = HOTPATH_STATE.get()?;
     let state_option = arc_swap.load();
     let state_arc = (*state_option).as_ref()?.clone();

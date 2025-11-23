@@ -64,6 +64,12 @@ fn main() {
             println!("[Receiver] Received from bounded: {}", msg);
         }
 
+        if let Ok(secs) = std::env::var("TEST_SLEEP_SECONDS") {
+            if let Ok(duration) = secs.parse::<u64>() {
+                std::thread::sleep(std::time::Duration::from_secs(duration));
+            }
+        }
+
         println!("\nFutures channel example completed!");
     })
 }

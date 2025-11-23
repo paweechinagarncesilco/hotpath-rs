@@ -723,6 +723,144 @@ pub mod tests {
     }
 
     #[test]
+    fn test_data_endpoints() {
+        use hotpath::FunctionsJson;
+        use std::{thread::sleep, time::Duration};
+
+        // Spawn example process as a background child process with HTTP server enabled
+        let mut child = Command::new("cargo")
+            .args([
+                "run",
+                "-p",
+                "test-tokio-async",
+                "--example",
+                "basic",
+                "--features",
+                "hotpath,hotpath-alloc",
+            ])
+            .env("HOTPATH_HTTP_PORT", "6775")
+            .env("TEST_SLEEP_SECONDS", "10")
+            .spawn()
+            .expect("Failed to spawn command");
+
+        // Test /functions_timing endpoint
+        let mut timing_json = String::new();
+        let mut last_error = None;
+
+        // Give the server some time to start up
+        for _attempt in 0..18 {
+            sleep(Duration::from_millis(500));
+
+            match ureq::get("http://127.0.0.1:6775/functions_timing").call() {
+                Ok(mut response) => {
+                    timing_json = response
+                        .body_mut()
+                        .read_to_string()
+                        .expect("Failed to read response body");
+                    last_error = None;
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(format!("Request error: {}", e));
+                }
+            }
+        }
+
+        if let Some(error) = last_error {
+            let _ = child.kill();
+            panic!(
+                "Failed to connect to /functions_timing after 12 retries: {}",
+                error
+            );
+        }
+
+        // Assert timing JSON contains expected function names
+        let timing_expected = [
+            "basic::sync_function",
+            "basic::async_function",
+            "custom_block",
+        ];
+        for expected in timing_expected {
+            assert!(
+                timing_json.contains(expected),
+                "Expected:\n{expected}\n\nGot:\n{timing_json}",
+            );
+        }
+
+        // Parse JSON to verify structure
+        let timing_response: FunctionsJson =
+            serde_json::from_str(&timing_json).expect("Failed to parse timing JSON");
+
+        // Test /functions_alloc endpoint
+        let mut alloc_response = ureq::get("http://127.0.0.1:6775/functions_alloc")
+            .call()
+            .expect("Failed to call /functions_alloc endpoint");
+
+        assert_eq!(
+            alloc_response.status(),
+            200,
+            "Expected status 200 for /functions_alloc endpoint"
+        );
+
+        let alloc_json = alloc_response
+            .body_mut()
+            .read_to_string()
+            .expect("Failed to read alloc response body");
+
+        // Assert alloc JSON contains expected function names
+        for expected in timing_expected {
+            assert!(
+                alloc_json.contains(expected),
+                "Expected:\n{expected}\n\nGot:\n{alloc_json}",
+            );
+        }
+
+        // Parse alloc JSON to verify structure
+        let _alloc_response: FunctionsJson =
+            serde_json::from_str(&alloc_json).expect("Failed to parse alloc JSON");
+
+        // Test function logs endpoints using first function from timing response
+        if let Some(first_function_name) = timing_response.data.0.keys().next() {
+            use base64::Engine;
+            let encoded_name =
+                base64::engine::general_purpose::STANDARD.encode(first_function_name.as_bytes());
+
+            // Test timing logs endpoint
+            let timing_logs_url = format!(
+                "http://127.0.0.1:6775/functions_timing/{}/logs",
+                encoded_name
+            );
+            let timing_logs_response = ureq::get(&timing_logs_url)
+                .call()
+                .expect("Failed to call /functions_timing/:name/logs endpoint");
+
+            assert_eq!(
+                timing_logs_response.status(),
+                200,
+                "Expected status 200 for /functions_timing/:name/logs endpoint"
+            );
+
+            // Test alloc logs endpoint
+            let alloc_logs_url = format!(
+                "http://127.0.0.1:6775/functions_alloc/{}/logs",
+                encoded_name
+            );
+            let alloc_logs_response = ureq::get(&alloc_logs_url)
+                .call()
+                .expect("Failed to call /functions_alloc/:name/logs endpoint");
+
+            assert_eq!(
+                alloc_logs_response.status(),
+                200,
+                "Expected status 200 for /functions_alloc/:name/logs endpoint"
+            );
+        }
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[test]
     fn test_main_timeout_output() {
         let output = Command::new("cargo")
             .args([
