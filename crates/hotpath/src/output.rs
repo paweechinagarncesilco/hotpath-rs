@@ -380,9 +380,13 @@ impl FunctionsDataJson {
                     .replace('%', "percent");
 
                 if let Some(value) = function_obj.get(&key) {
-                    let value_u64 = value.as_u64().ok_or("Expected u64 value")?;
-                    let metric_type = create_metric_type(&key, value_u64, profiling_mode);
-                    row.push(metric_type);
+                    if value.is_null() {
+                        row.push(MetricType::Unsupported);
+                    } else {
+                        let value_u64 = value.as_u64().ok_or("Expected u64 value")?;
+                        let metric_type = create_metric_type(&key, value_u64, profiling_mode);
+                        row.push(metric_type);
+                    }
                 }
             }
             data.insert(function_name.clone(), row);
@@ -852,5 +856,67 @@ mod tests {
 
         let row = &metrics.data.0["test_function"];
         assert_eq!(row.len(), 5); // calls, avg, p95, total, percent_total
+    }
+
+    #[test]
+    fn test_deserialize_with_null_values() {
+        let json_str = r#"{
+            "hotpath_profiling_mode": "timing",
+            "total_elapsed": 38645741583,
+            "caller_name": "server::main",
+            "description": "Function execution time metrics.",
+            "output": {
+                "serve_doc_page": {
+                    "calls": 5,
+                    "avg": null,
+                    "p95": null,
+                    "total": null,
+                    "percent_total": null
+                },
+                "html_response": {
+                    "calls": 5,
+                    "avg": 25008,
+                    "p95": 33183,
+                    "total": 125041,
+                    "percent_total": 62
+                }
+            }
+        }"#;
+
+        let metrics: FunctionsJson =
+            serde_json::from_str(json_str).expect("Failed to deserialize JSON with null values");
+
+        assert!(matches!(
+            metrics.hotpath_profiling_mode,
+            ProfilingMode::Timing
+        ));
+        assert_eq!(metrics.data.0.len(), 2);
+
+        // Verify that null values are handled as Unsupported
+        let serve_doc_row = &metrics.data.0["serve_doc_page"];
+        assert_eq!(serve_doc_row.len(), 5);
+        assert!(matches!(serve_doc_row[0], MetricType::CallsCount(5)));
+        assert!(matches!(serve_doc_row[1], MetricType::Unsupported)); // avg
+        assert!(matches!(serve_doc_row[2], MetricType::Unsupported)); // p95
+        assert!(matches!(serve_doc_row[3], MetricType::Unsupported)); // total
+        assert!(matches!(serve_doc_row[4], MetricType::Unsupported)); // percent_total
+
+        // Verify that normal values still work
+        let html_response_row = &metrics.data.0["html_response"];
+        assert_eq!(html_response_row.len(), 5);
+        assert!(matches!(html_response_row[0], MetricType::CallsCount(5)));
+        assert!(matches!(
+            html_response_row[1],
+            MetricType::DurationNs(25008)
+        ));
+        assert!(matches!(
+            html_response_row[2],
+            MetricType::DurationNs(33183)
+        ));
+        assert!(matches!(
+            html_response_row[3],
+            MetricType::DurationNs(125041)
+        ));
+        assert!(matches!(html_response_row[4], MetricType::Percentage(62)));
     }
 }
