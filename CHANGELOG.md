@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.2] - 2025-11-24
+
+### 🚀 Features
+
+- Auto-instrumentation demo
+
+### 🐛 Bug Fixes
+
+- Consistent sort order
+- Fix handling for cross thread metrics
+- Fix display for unsupported alloc metrics
+
+### ⚡ Performance
+
+- Auto instrumentation for hotpath TUI
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove time profiling from CI
+- Update mach2 dependency
+- Release 0.7.2
+
 ## [0.7.1] - 2025-11-23
 
 ### 🚀 Features
