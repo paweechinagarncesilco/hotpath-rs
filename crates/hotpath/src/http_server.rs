@@ -21,6 +21,93 @@ static RE_FUNCTION_LOGS_TIMING: LazyLock<Regex> =
 static RE_FUNCTION_LOGS_ALLOC: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^/functions_alloc/([^/]+)/logs$").unwrap());
 
+/// HTTP routes for the hotpath metrics server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Route {
+    /// GET /functions_timing - Returns timing metrics for all functions
+    FunctionsTiming,
+    /// GET /functions_alloc - Returns allocation metrics for all functions
+    FunctionsAlloc,
+    /// GET /channels - Returns all channel statistics
+    Channels,
+    /// GET /streams - Returns all stream statistics
+    Streams,
+    /// GET /functions_timing/{base64_name}/logs - Returns timing logs for a function
+    FunctionTimingLogs { function_name: String },
+    /// GET /functions_alloc/{base64_name}/logs - Returns allocation logs for a function
+    FunctionAllocLogs { function_name: String },
+    /// GET /channels/{id}/logs - Returns logs for a specific channel
+    ChannelLogs { channel_id: u64 },
+    /// GET /streams/{id}/logs - Returns logs for a specific stream
+    StreamLogs { stream_id: u64 },
+}
+
+impl Route {
+    /// Returns the path portion of the URL for this route.
+    pub fn to_path(&self) -> String {
+        use base64::Engine;
+        match self {
+            Route::FunctionsTiming => "/functions_timing".to_string(),
+            Route::FunctionsAlloc => "/functions_alloc".to_string(),
+            Route::Channels => "/channels".to_string(),
+            Route::Streams => "/streams".to_string(),
+            Route::FunctionTimingLogs { function_name } => {
+                let encoded =
+                    base64::engine::general_purpose::STANDARD.encode(function_name.as_bytes());
+                format!("/functions_timing/{}/logs", encoded)
+            }
+            Route::FunctionAllocLogs { function_name } => {
+                let encoded =
+                    base64::engine::general_purpose::STANDARD.encode(function_name.as_bytes());
+                format!("/functions_alloc/{}/logs", encoded)
+            }
+            Route::ChannelLogs { channel_id } => format!("/channels/{}/logs", channel_id),
+            Route::StreamLogs { stream_id } => format!("/streams/{}/logs", stream_id),
+        }
+    }
+
+    /// Returns the full URL for this route with the given port.
+    pub fn to_url(&self, port: u16) -> String {
+        format!("http://localhost:{}{}", port, self.to_path())
+    }
+
+    /// Parses a URL path into a Route using regex patterns.
+    /// Returns None if the path doesn't match any known route.
+    pub fn from_path(path: &str) -> Option<Self> {
+        let path = path.split('?').next().unwrap_or(path);
+
+        match path {
+            "/functions_timing" => return Some(Route::FunctionsTiming),
+            "/functions_alloc" => return Some(Route::FunctionsAlloc),
+            "/channels" => return Some(Route::Channels),
+            "/streams" => return Some(Route::Streams),
+            _ => {}
+        }
+
+        if let Some(caps) = RE_FUNCTION_LOGS_TIMING.captures(path) {
+            let function_name = base64_decode(&caps[1]).ok()?;
+            return Some(Route::FunctionTimingLogs { function_name });
+        }
+
+        if let Some(caps) = RE_FUNCTION_LOGS_ALLOC.captures(path) {
+            let function_name = base64_decode(&caps[1]).ok()?;
+            return Some(Route::FunctionAllocLogs { function_name });
+        }
+
+        if let Some(caps) = RE_CHANNEL_LOGS.captures(path) {
+            let channel_id = caps[1].parse().ok()?;
+            return Some(Route::ChannelLogs { channel_id });
+        }
+
+        if let Some(caps) = RE_STREAM_LOGS.captures(path) {
+            let stream_id = caps[1].parse().ok()?;
+            return Some(Route::StreamLogs { stream_id });
+        }
+
+        None
+    }
+}
+
 /// Tracks whether the HTTP server has been started to prevent duplicate instances
 static HTTP_SERVER_STARTED: OnceLock<()> = OnceLock::new();
 
@@ -57,10 +144,14 @@ fn start_metrics_server(port: u16) {
 }
 
 fn handle_request(request: Request) {
-    let path = request.url().split('?').next().unwrap_or("/").to_string();
+    let path = request.url();
 
-    match path.as_str() {
-        "/functions_alloc" => match get_functions_alloc_json() {
+    match Route::from_path(path) {
+        Some(Route::FunctionsTiming) => {
+            let metrics = get_functions_timing_json();
+            respond_json(request, &metrics);
+        }
+        Some(Route::FunctionsAlloc) => match get_functions_alloc_json() {
             Some(metrics) => respond_json(request, &metrics),
             None => respond_error(
                 request,
@@ -68,51 +159,45 @@ fn handle_request(request: Request) {
                 "Memory profiling not available - enable hotpath-alloc feature",
             ),
         },
-        "/functions_timing" => {
-            let metrics = get_functions_timing_json();
-            respond_json(request, &metrics);
-        }
-        "/channels" => {
+        Some(Route::Channels) => {
             let channels = get_channels_json();
             respond_json(request, &channels);
         }
-        "/streams" => {
+        Some(Route::Streams) => {
             let streams = get_streams_json();
             respond_json(request, &streams);
         }
-        _ => {
-            // Handle /functions_timing/<encoded_key>/logs
-            if let Some(caps) = RE_FUNCTION_LOGS_TIMING.captures(&path) {
-                handle_function_logs_timing_request(request, &caps[1]);
-                return;
+        Some(Route::FunctionTimingLogs { function_name }) => {
+            match get_function_logs_timing(&function_name) {
+                Some(logs) => respond_json(request, &logs),
+                None => respond_error(
+                    request,
+                    404,
+                    &format!("Function '{}' not found", function_name),
+                ),
             }
-
-            // Handle /functions_alloc/<encoded_key>/logs
-            if let Some(caps) = RE_FUNCTION_LOGS_ALLOC.captures(&path) {
-                handle_function_logs_alloc_request(request, &caps[1]);
-                return;
-            }
-
-            // Handle /channels/<id>/logs
-            if let Some(caps) = RE_CHANNEL_LOGS.captures(&path) {
-                match get_channel_logs(&caps[1]) {
-                    Some(logs) => respond_json(request, &logs),
-                    None => respond_error(request, 404, "Channel not found"),
-                }
-                return;
-            }
-
-            // Handle /streams/<id>/logs
-            if let Some(caps) = RE_STREAM_LOGS.captures(&path) {
-                match get_stream_logs(&caps[1]) {
-                    Some(logs) => respond_json(request, &logs),
-                    None => respond_error(request, 404, "Stream not found"),
-                }
-                return;
-            }
-
-            respond_error(request, 404, "Not found");
         }
+        Some(Route::FunctionAllocLogs { function_name }) => {
+            match get_function_logs_alloc(&function_name) {
+                Some(logs) => respond_json(request, &logs),
+                None => respond_error(
+                    request,
+                    404,
+                    "Memory profiling not available - enable hotpath-alloc feature",
+                ),
+            }
+        }
+        Some(Route::ChannelLogs { channel_id }) => {
+            match get_channel_logs(&channel_id.to_string()) {
+                Some(logs) => respond_json(request, &logs),
+                None => respond_error(request, 404, "Channel not found"),
+            }
+        }
+        Some(Route::StreamLogs { stream_id }) => match get_stream_logs(&stream_id.to_string()) {
+            Some(logs) => respond_json(request, &logs),
+            None => respond_error(request, 404, "Stream not found"),
+        },
+        None => respond_error(request, 404, "Not found"),
     }
 }
 
@@ -139,54 +224,6 @@ fn respond_internal_error(request: Request, e: impl Display) {
     let _ = request.respond(
         Response::from_string(format!("Internal server error: {}", e)).with_status_code(500),
     );
-}
-
-fn handle_function_logs_timing_request(request: Request, encoded_key: &str) {
-    let function_name = match base64_decode(encoded_key) {
-        Ok(name) => name,
-        Err(e) => {
-            respond_error(request, 400, &format!("Invalid base64 encoding: {}", e));
-            return;
-        }
-    };
-
-    // Get timing logs from worker thread
-    match get_function_logs_timing(&function_name) {
-        Some(function_logs_json) => {
-            respond_json(request, &function_logs_json);
-        }
-        None => {
-            respond_error(
-                request,
-                404,
-                &format!("Function '{}' not found", function_name),
-            );
-        }
-    }
-}
-
-fn handle_function_logs_alloc_request(request: Request, encoded_key: &str) {
-    let function_name = match base64_decode(encoded_key) {
-        Ok(name) => name,
-        Err(e) => {
-            respond_error(request, 400, &format!("Invalid base64 encoding: {}", e));
-            return;
-        }
-    };
-
-    // Get allocation logs from worker thread
-    match get_function_logs_alloc(&function_name) {
-        Some(function_logs_json) => {
-            respond_json(request, &function_logs_json);
-        }
-        None => {
-            respond_error(
-                request,
-                404,
-                "Memory profiling not available - enable hotpath-alloc feature",
-            );
-        }
-    }
 }
 
 fn base64_decode(encoded: &str) -> Result<String, String> {

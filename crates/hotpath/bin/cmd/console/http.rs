@@ -1,47 +1,7 @@
 use eyre::Result;
 use hotpath::channels::ChannelLogs;
 use hotpath::streams::{StreamLogs, StreamsJson};
-use hotpath::{FunctionLogsJson, FunctionsJson};
-
-/// HTTP routes for the hotpath metrics server
-enum Route {
-    FunctionsTiming,
-    FunctionsAlloc,
-    Channels,
-    Streams,
-    FunctionTimingLogs { function_name: String },
-    FunctionAllocLogs { function_name: String },
-    ChannelLogs { channel_id: u64 },
-    StreamLogs { stream_id: u64 },
-}
-
-impl Route {
-    /// Converts the route to a full URL with the given port
-    fn to_url(&self, port: u16) -> String {
-        use base64::Engine;
-
-        let path = match self {
-            Route::FunctionsTiming => "/functions_timing".to_string(),
-            Route::FunctionsAlloc => "/functions_alloc".to_string(),
-            Route::Channels => "/channels".to_string(),
-            Route::Streams => "/streams".to_string(),
-            Route::FunctionTimingLogs { function_name } => {
-                let encoded =
-                    base64::engine::general_purpose::STANDARD.encode(function_name.as_bytes());
-                format!("/functions_timing/{}/logs", encoded)
-            }
-            Route::FunctionAllocLogs { function_name } => {
-                let encoded =
-                    base64::engine::general_purpose::STANDARD.encode(function_name.as_bytes());
-                format!("/functions_alloc/{}/logs", encoded)
-            }
-            Route::ChannelLogs { channel_id } => format!("/channels/{}/logs", channel_id),
-            Route::StreamLogs { stream_id } => format!("/streams/{}/logs", stream_id),
-        };
-
-        format!("http://localhost:{}{}", port, path)
-    }
-}
+use hotpath::{FunctionLogsJson, FunctionsJson, Route};
 
 /// Fetches timing metrics from the hotpath HTTP server
 #[cfg_attr(feature = "hotpath", hotpath::measure)]

@@ -24,6 +24,8 @@ pub use output::{
 
 #[cfg(not(feature = "hotpath-off"))]
 pub(crate) mod http_server;
+#[cfg(not(feature = "hotpath-off"))]
+pub use http_server::Route;
 
 #[cfg(not(feature = "hotpath-off"))]
 pub(crate) mod tid;
