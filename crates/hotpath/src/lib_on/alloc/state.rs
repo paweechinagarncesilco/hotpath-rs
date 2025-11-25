@@ -295,7 +295,7 @@ pub fn send_alloc_measurement(
 ) {
     let Some(arc_swap) = HOTPATH_STATE.get() else {
         panic!(
-            "GuardBuilder::new(\"main\").build() must be called when --features hotpath-alloc is enabled"
+            "GuardBuilder::new(\"main\").build() or #[hotpath::main] must be used when --features hotpath-alloc is enabled"
         );
     };
 
