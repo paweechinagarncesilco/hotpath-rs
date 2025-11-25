@@ -1,9 +1,9 @@
 [package]
 name = "hotpath-macros"
-version = "0.7.2"
+version = "0.7.3"
 edition = "2021"
 repository = "https://github.com/pawurb/hotpath"
-description = "Rust performance debug toolkit. Live profiling for allocations, timings, and channel/stream data flows - proc macros crate"
+description = "Rust performance debug toolkit. Live profiling for allocations, timings, threads, and channel/stream data flows - proc macros crate"
 readme = "../../README.md"
 license = "MIT"
 categories = ["development-tools"]
