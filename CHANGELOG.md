@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.3] - 2025-11-25
+
+### 🚀 Features
+
+- Initial threads monitoring
+
+### 🐛 Bug Fixes
+
+- Remove stream unsafe code with pin-project-lite
+- Relax tokyo dependency
+- Fix missing init panic message [#73]
+
+### 🚜 Refactor
+
+- Improve http routes logic
+
+### ⚡ Performance
+
+- Dont sleep in crossbeam channel wrapper
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.7.3
+
 ## [0.7.2] - 2025-11-24
 
 ### 🚀 Features
