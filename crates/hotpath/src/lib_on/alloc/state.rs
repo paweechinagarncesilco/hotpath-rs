@@ -13,12 +13,13 @@ pub struct Measurement {
     pub unsupported_async: bool,
     pub wrapper: bool,
     pub cross_thread: bool,
-    pub tid: u64,
+    pub tid: Option<u64>, // None = cross-thread
 }
 
 /// Log entry for function execution metrics.
 /// bytes/count are None if cross_thread or unsupported_async.
-type LogEntry = (Option<u64>, Option<u64>, u64, Duration, u64);
+/// tid is None if cross-thread.
+type LogEntry = (Option<u64>, Option<u64>, u64, Duration, Option<u64>);
 
 #[derive(Debug, Clone)]
 pub struct FunctionStats {
@@ -53,7 +54,7 @@ impl FunctionStats {
         wrapper: bool,
         cross_thread: bool,
         recent_logs_limit: usize,
-        tid: u64,
+        tid: Option<u64>,
     ) -> Self {
         let bytes_total_hist =
             Histogram::<u64>::new_with_bounds(Self::LOW_BYTES, Self::HIGH_BYTES, Self::SIGFIGS)
@@ -132,7 +133,7 @@ impl FunctionStats {
         elapsed: Duration,
         unsupported_async: bool,
         cross_thread: bool,
-        tid: u64,
+        tid: Option<u64>,
     ) {
         self.count += 1;
         self.has_unsupported_async |= unsupported_async;
@@ -291,7 +292,7 @@ pub fn send_alloc_measurement(
     unsupported_async: bool,
     wrapper: bool,
     cross_thread: bool,
-    tid: u64,
+    tid: Option<u64>,
 ) {
     let Some(arc_swap) = HOTPATH_STATE.get() else {
         panic!(

@@ -73,6 +73,7 @@ impl Drop for MeasurementGuard {
             stack.tracking_enabled.set(false);
         });
 
+        let tid = if cross_thread { None } else { Some(self.tid) };
         super::state::send_alloc_measurement(
             self.name,
             bytes_total,
@@ -81,7 +82,7 @@ impl Drop for MeasurementGuard {
             unsupported_async,
             self.wrapper,
             cross_thread,
-            self.tid,
+            tid,
         );
 
         // Re-enable allocation tracking

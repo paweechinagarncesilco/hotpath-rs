@@ -28,6 +28,8 @@ impl Drop for MeasurementGuard {
     #[inline]
     fn drop(&mut self) {
         let dur = self.start.elapsed();
-        super::state::send_duration_measurement(self.name, dur, self.wrapper, self.tid);
+        let cross_thread = crate::tid::current_tid() != self.tid;
+        let tid = if cross_thread { None } else { Some(self.tid) };
+        super::state::send_duration_measurement(self.name, dur, self.wrapper, tid);
     }
 }

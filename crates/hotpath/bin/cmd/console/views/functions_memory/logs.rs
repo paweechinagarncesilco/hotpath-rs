@@ -101,7 +101,7 @@ pub(crate) fn render_function_logs_panel(
                     Cell::from(mem_str),
                     Cell::from(obj_str),
                     Cell::from(time_ago_str),
-                    Cell::from(tid.to_string()),
+                    Cell::from(tid.map_or("N/A".to_string(), |t| t.to_string())),
                 ])
             })
             .collect();

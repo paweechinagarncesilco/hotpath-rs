@@ -89,6 +89,44 @@ async fn slow_async_allocator() -> Vec<Vec<u64>> {
     arrays
 }
 
+/// Async function designed to migrate between threads.
+/// Many yield points give the executor opportunities to reschedule on different workers.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
+async fn cross_thread_worker() -> u64 {
+    let mut total = 0u64;
+
+    // Many yield points to maximize chance of thread migration
+    for i in 0..20 {
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+        sleep(Duration::from_micros(1)).await;
+        total += i;
+    }
+
+    total
+}
+
+/// Another async function with many awaits to demonstrate cross-thread behavior.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
+async fn heavy_async_work() -> Vec<u64> {
+    let mut results = Vec::new();
+
+    for _ in 0..10 {
+        // CPU work
+        let data: Vec<u64> = (0..100).map(|x| x * 2).collect();
+        results.extend(data.iter().take(5));
+
+        // Multiple yields per iteration
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+        sleep(Duration::from_micros(1)).await;
+        tokio::task::yield_now().await;
+    }
+
+    results
+}
+
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
 fn process_data(arrays: Vec<Vec<u64>>) -> u64 {
     let mut rng = rand::thread_rng();
@@ -106,12 +144,11 @@ fn process_data(arrays: Vec<Vec<u64>>) -> u64 {
     total_sum
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 #[cfg_attr(feature = "hotpath", hotpath::main)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Starting 60-second profiling test...");
 
-    // Create two instrumented channels
     let (fast_tx, fast_rx) = mpsc::channel::<u64>(100);
     let (slow_tx, slow_rx) = mpsc::channel::<String>(50);
 
@@ -124,7 +161,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut fast_rx = fast_rx;
     let mut slow_rx = slow_rx;
 
-    // Create two instrumented streams
     let fast_stream = stream::iter(0u64..);
     let slow_stream = stream::iter(0u64..);
 
@@ -216,6 +252,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let data5_task = tokio::task::spawn_blocking(move || process_data(data5));
             let _ = data5_task.await;
         }
+
+        // Call cross-thread async functions (may migrate between worker threads)
+        // Spawn them as separate tasks to increase migration likelihood
+        let cross1 = tokio::spawn(cross_thread_worker());
+        let cross2 = tokio::spawn(cross_thread_worker());
+        let cross3 = tokio::spawn(heavy_async_work());
+
+        // Also call directly (will run on current worker but may migrate)
+        let _ = cross_thread_worker().await;
+        let _ = heavy_async_work().await;
+
+        let _ = cross1.await;
+        let _ = cross2.await;
+        let _ = cross3.await;
 
         let data1 = data1_task.await.unwrap();
         let data1_process_task = tokio::task::spawn_blocking(move || process_data(data1));

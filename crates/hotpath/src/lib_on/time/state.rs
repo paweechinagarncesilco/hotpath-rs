@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 pub enum Measurement {
-    Duration(u64, Duration, &'static str, bool, u64), // duration_ns, elapsed_since_start, function_name, wrapper, tid
+    Duration(u64, Duration, &'static str, bool, Option<u64>), // duration_ns, elapsed_since_start, function_name, wrapper, tid (None = cross-thread)
 }
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ pub struct FunctionStats {
     hist: Option<Histogram<u64>>,
     pub has_data: bool,
     pub wrapper: bool,
-    pub recent_logs: VecDeque<(u64, Duration, u64)>, // (duration_ns, elapsed, tid)
+    pub recent_logs: VecDeque<(u64, Duration, Option<u64>)>, // (duration_ns, elapsed, tid - None = cross-thread)
 }
 
 impl FunctionStats {
@@ -28,7 +28,7 @@ impl FunctionStats {
         elapsed: Duration,
         wrapper: bool,
         recent_logs_limit: usize,
-        tid: u64,
+        tid: Option<u64>,
     ) -> Self {
         let hist = Histogram::<u64>::new_with_bounds(Self::LOW_NS, Self::HIGH_NS, Self::SIGFIGS)
             .expect("hdrhistogram init");
@@ -56,7 +56,7 @@ impl FunctionStats {
         }
     }
 
-    pub fn update_duration(&mut self, duration_ns: u64, elapsed: Duration, tid: u64) {
+    pub fn update_duration(&mut self, duration_ns: u64, elapsed: Duration, tid: Option<u64>) {
         self.total_duration_ns += duration_ns;
         self.count += 1;
         self.record_time(duration_ns);
@@ -125,7 +125,12 @@ pub(crate) fn process_measurement(
 
 use super::super::HOTPATH_STATE;
 
-pub fn send_duration_measurement(name: &'static str, duration: Duration, wrapper: bool, tid: u64) {
+pub fn send_duration_measurement(
+    name: &'static str,
+    duration: Duration,
+    wrapper: bool,
+    tid: Option<u64>,
+) {
     let Some(arc_swap) = HOTPATH_STATE.get() else {
         panic!(
             "GuardBuilder::new(\"main\").build() or #[hotpath::main] must be used when --features hotpath is enabled"
