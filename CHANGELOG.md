@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.4] - 2025-11-27
+
+### 🚀 Features
+
+- Display function position index
+- Display per thread alloc dealloc stats
+
+### 🐛 Bug Fixes
+
+- Cleanup bottom bar
+- Dont display cross thread exec TID
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.7.4
+
 ## [0.7.3] - 2025-11-25
 
 ### 🚀 Features
