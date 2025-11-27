@@ -1,9 +1,15 @@
+#[cfg(target_os = "linux")]
+use quanta::Instant;
+
+#[cfg(not(target_os = "linux"))]
+use std::time::Instant;
+
 pub struct MeasurementGuard {
     name: &'static str,
     wrapper: bool,
     unsupported_async: bool,
     tid: u64,
-    start: std::time::Instant,
+    start: Instant,
 }
 
 impl MeasurementGuard {
@@ -26,7 +32,7 @@ impl MeasurementGuard {
             wrapper,
             unsupported_async,
             tid: crate::tid::current_tid(),
-            start: std::time::Instant::now(),
+            start: Instant::now(),
         }
     }
 }

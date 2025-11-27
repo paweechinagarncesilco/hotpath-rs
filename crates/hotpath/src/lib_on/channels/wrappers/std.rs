@@ -1,6 +1,10 @@
+#[cfg(target_os = "linux")]
+use quanta::Instant;
 use std::mem;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
+#[cfg(not(target_os = "linux"))]
+use std::time::Instant;
 
 use crate::channels::{init_channels_state, ChannelEvent, ChannelType, CHANNEL_ID_COUNTER};
 
@@ -70,7 +74,7 @@ where
                     let _ = stats_tx_send.send(ChannelEvent::MessageSent {
                         id,
                         log,
-                        timestamp: std::time::Instant::now(),
+                        timestamp: Instant::now(),
                     });
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
@@ -97,7 +101,7 @@ where
             }
             let _ = stats_tx_recv.send(ChannelEvent::MessageReceived {
                 id,
-                timestamp: std::time::Instant::now(),
+                timestamp: Instant::now(),
             });
         }
         // Channel is closed (either inner sender dropped or outer receiver closed)
@@ -195,7 +199,7 @@ where
                     let _ = stats_tx_send.send(ChannelEvent::MessageSent {
                         id,
                         log,
-                        timestamp: std::time::Instant::now(),
+                        timestamp: Instant::now(),
                     });
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
@@ -222,7 +226,7 @@ where
             }
             let _ = stats_tx_recv.send(ChannelEvent::MessageReceived {
                 id,
-                timestamp: std::time::Instant::now(),
+                timestamp: Instant::now(),
             });
         }
         // Channel is closed (either inner sender dropped or outer receiver closed)

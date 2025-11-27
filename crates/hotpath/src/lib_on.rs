@@ -699,6 +699,9 @@ impl HotPath {
         arc_swap.store(Some(Arc::clone(&state_arc)));
 
         // Initialize START_TIME for channels/streams (required before HTTP server starts)
+        #[cfg(target_os = "linux")]
+        crate::channels::START_TIME.get_or_init(quanta::Instant::now);
+        #[cfg(not(target_os = "linux"))]
         crate::channels::START_TIME.get_or_init(std::time::Instant::now);
 
         // Start HTTP metrics server (default port 6770, customizable via HOTPATH_HTTP_PORT)

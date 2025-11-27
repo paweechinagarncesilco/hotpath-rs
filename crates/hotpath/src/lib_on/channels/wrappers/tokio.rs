@@ -1,5 +1,9 @@
+#[cfg(target_os = "linux")]
+use quanta::Instant;
 use std::mem;
 use std::sync::atomic::Ordering;
+#[cfg(not(target_os = "linux"))]
+use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
@@ -59,7 +63,7 @@ where
                             let _ = stats_tx_send.send(ChannelEvent::MessageSent {
                                 id,
                                 log,
-                                timestamp: std::time::Instant::now(),
+                                timestamp: Instant::now(),
                             });
                         }
                         None => break, // Outer sender dropped
@@ -86,7 +90,7 @@ where
                             if from_inner_tx.send(msg).await.is_ok() {
                                 let _ = stats_tx_recv.send(ChannelEvent::MessageReceived {
                                     id,
-                                    timestamp: std::time::Instant::now(),
+                                    timestamp: Instant::now(),
                                 });
                             } else {
                                 let _ = close_signal_tx.send(());
@@ -180,7 +184,7 @@ where
                             let _ = stats_tx_send.send(ChannelEvent::MessageSent {
                                 id,
                                 log,
-                                timestamp: std::time::Instant::now(),
+                                timestamp: Instant::now(),
                             });
                         }
                         None => break, // Outer sender dropped
@@ -207,7 +211,7 @@ where
                             if from_inner_tx.send(msg).is_ok() {
                                 let _ = stats_tx_recv.send(ChannelEvent::MessageReceived {
                                     id,
-                                    timestamp: std::time::Instant::now(),
+                                    timestamp: Instant::now(),
                                 });
                             } else {
                                 // Outer receiver was closed
@@ -298,7 +302,7 @@ where
                         if inner_tx_proxy.send(msg).is_ok() {
                             let _ = stats_tx_recv.send(ChannelEvent::MessageReceived {
                                 id,
-                                timestamp: std::time::Instant::now(),
+                                timestamp: Instant::now(),
                             });
                             message_received = true;
                         }
@@ -332,7 +336,7 @@ where
                             let _ = stats_tx_send.send(ChannelEvent::MessageSent {
                                 id,
                                 log,
-                                timestamp: std::time::Instant::now(),
+                                timestamp: Instant::now(),
                             });
                             let _ = stats_tx_send.send(ChannelEvent::Notified { id });
                             message_sent = true;

@@ -5,6 +5,11 @@ use pin_project_lite::pin_project;
 use std::pin::Pin;
 use std::sync::atomic::Ordering;
 use std::task::{Context, Poll};
+
+#[cfg(target_os = "linux")]
+use quanta::Instant;
+
+#[cfg(not(target_os = "linux"))]
 use std::time::Instant;
 
 pin_project! {
