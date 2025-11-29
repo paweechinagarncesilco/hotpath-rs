@@ -7,6 +7,8 @@
 //! - `keys`: Keyboard input handling
 
 use hotpath::channels::{ChannelLogs, LogEntry};
+use hotpath::futures::FutureCall;
+use hotpath::futures::{FutureCalls, FuturesJson as FuturesJsonData};
 use hotpath::streams::{StreamLogs, StreamsJson};
 use hotpath::threads::ThreadsJson;
 use hotpath::{channels::ChannelsJson, FunctionLogsJson, FunctionsJson};
@@ -24,6 +26,7 @@ pub(crate) enum SelectedTab {
     #[default]
     Timing,
     Memory,
+    Futures,
     Channels,
     Streams,
     Threads,
@@ -34,9 +37,10 @@ impl SelectedTab {
         match self {
             SelectedTab::Timing => 1,
             SelectedTab::Memory => 2,
-            SelectedTab::Channels => 3,
-            SelectedTab::Streams => 4,
-            SelectedTab::Threads => 5,
+            SelectedTab::Futures => 3,
+            SelectedTab::Channels => 4,
+            SelectedTab::Streams => 5,
+            SelectedTab::Threads => 6,
         }
     }
 
@@ -44,6 +48,7 @@ impl SelectedTab {
         match self {
             SelectedTab::Timing => "Timing",
             SelectedTab::Memory => "Memory",
+            SelectedTab::Futures => "Futures",
             SelectedTab::Channels => "Channels",
             SelectedTab::Streams => "Streams",
             SelectedTab::Threads => "Threads",
@@ -76,6 +81,14 @@ pub(crate) enum StreamsFocus {
 pub(crate) enum FunctionsFocus {
     Functions,
     Logs,
+}
+
+/// Represents which UI component has focus in the Futures tab
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FuturesFocus {
+    Futures,
+    Calls,
+    Inspect,
 }
 
 /// Cached logs with a lookup map for received entries
@@ -179,6 +192,22 @@ pub(crate) struct App {
     pub(crate) threads: ThreadsJson,
     /// Selection state for threads tab table
     pub(crate) threads_table_state: TableState,
+
+    // Futures tab specific state
+    /// Current futures data
+    pub(crate) futures: FuturesJsonData,
+    /// Selection state for futures tab table
+    pub(crate) futures_table_state: TableState,
+    /// Which component has focus in Futures tab
+    pub(crate) futures_focus: FuturesFocus,
+    /// Whether calls panel is visible
+    pub(crate) show_future_calls: bool,
+    /// Selection state for future calls table
+    pub(crate) future_calls_table_state: TableState,
+    /// Cached calls data for selected future
+    pub(crate) future_calls: Option<FutureCalls>,
+    /// Future call being inspected in popup
+    pub(crate) inspected_future_call: Option<FutureCall>,
 }
 
 #[cfg_attr(feature = "hotpath", hotpath::measure_all)]
@@ -246,6 +275,16 @@ impl App {
                 rss_bytes: None,
             },
             threads_table_state: TableState::default().with_selected(0),
+            futures: FuturesJsonData {
+                current_elapsed_ns: 0,
+                futures: vec![],
+            },
+            futures_table_state: TableState::default().with_selected(0),
+            futures_focus: FuturesFocus::Futures,
+            show_future_calls: false,
+            future_calls_table_state: TableState::default(),
+            future_calls: None,
+            inspected_future_call: None,
         }
     }
 
@@ -271,6 +310,7 @@ impl App {
             SelectedTab::Channels => &mut self.channels_table_state,
             SelectedTab::Streams => &mut self.streams_table_state,
             SelectedTab::Threads => &mut self.threads_table_state,
+            SelectedTab::Futures => &mut self.futures_table_state,
         }
     }
 

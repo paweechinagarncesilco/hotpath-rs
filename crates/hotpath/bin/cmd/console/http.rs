@@ -1,5 +1,6 @@
 use eyre::Result;
 use hotpath::channels::ChannelLogs;
+use hotpath::futures::{FutureCalls, FuturesJson};
 use hotpath::streams::{StreamLogs, StreamsJson};
 use hotpath::threads::ThreadsJson;
 use hotpath::{FunctionLogsJson, FunctionsJson, Route};
@@ -183,4 +184,36 @@ pub(crate) fn fetch_threads(agent: &ureq::Agent, port: u16) -> Result<ThreadsJso
         .read_json()
         .map_err(|e| eyre::eyre!("JSON deserialization failed: {}", e))?;
     Ok(threads)
+}
+
+/// Fetches futures from the hotpath HTTP server
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
+pub(crate) fn fetch_futures(agent: &ureq::Agent, port: u16) -> Result<FuturesJson> {
+    let url = Route::Futures.to_url(port);
+    let futures: FuturesJson = agent
+        .get(&url)
+        .call()
+        .map_err(|e| eyre::eyre!("HTTP request failed: {}", e))?
+        .body_mut()
+        .read_json()
+        .map_err(|e| eyre::eyre!("JSON deserialization failed: {}", e))?;
+    Ok(futures)
+}
+
+/// Fetches calls for a specific future from the HTTP server
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
+pub(crate) fn fetch_future_calls(
+    agent: &ureq::Agent,
+    port: u16,
+    future_id: u64,
+) -> Result<FutureCalls> {
+    let url = Route::FutureCalls { future_id }.to_url(port);
+    let calls: FutureCalls = agent
+        .get(&url)
+        .call()
+        .map_err(|e| eyre::eyre!("HTTP request failed: {}", e))?
+        .body_mut()
+        .read_json()
+        .map_err(|e| eyre::eyre!("JSON deserialization failed: {}", e))?;
+    Ok(calls)
 }

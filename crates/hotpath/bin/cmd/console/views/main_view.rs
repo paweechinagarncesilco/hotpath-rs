@@ -1,9 +1,14 @@
-use super::super::app::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
+use super::super::app::{
+    App, ChannelsFocus, FunctionsFocus, FuturesFocus, SelectedTab, StreamsFocus,
+};
 use super::channels::{inspect, logs as channel_logs};
 use super::functions_memory::logs as memory_logs;
 use super::functions_timing::logs as timing_logs;
+use super::futures::{calls as future_calls, inspect as future_inspect};
 use super::streams::{inspect as stream_inspect, logs as stream_logs};
-use super::{bottom_bar, channels, functions_memory, functions_timing, streams, threads, top_bar};
+use super::{
+    bottom_bar, channels, functions_memory, functions_timing, futures, streams, threads, top_bar,
+};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
@@ -31,6 +36,7 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
         SelectedTab::Channels => !app.channels.channels.is_empty(),
         SelectedTab::Streams => !app.streams.streams.is_empty(),
         SelectedTab::Threads => !app.threads.threads.is_empty(),
+        SelectedTab::Futures => !app.futures.futures.is_empty(),
     };
 
     top_bar::render_status_bar(
@@ -99,6 +105,9 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
         SelectedTab::Threads => {
             render_threads_view(frame, app, main_chunks[2]);
         }
+        SelectedTab::Futures => {
+            render_futures_view(frame, app, main_chunks[2]);
+        }
     }
 
     bottom_bar::render_help_bar(
@@ -108,6 +117,7 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
         app.channels_focus,
         app.streams_focus,
         app.functions_focus,
+        app.futures_focus,
     );
 }
 
@@ -407,6 +417,114 @@ fn render_threads_view(frame: &mut Frame, app: &mut App, area: Rect) {
 }
 
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
+fn render_futures_view(frame: &mut Frame, app: &mut App, area: Rect) {
+    let stats = &app.futures.futures;
+
+    if let Some(ref error_msg) = app.error_message {
+        if stats.is_empty() {
+            let error_text = vec![
+                Line::from(""),
+                Line::from("Error").red().bold().centered(),
+                Line::from(""),
+                Line::from(error_msg.as_str()).red().centered(),
+                Line::from(""),
+                Line::from(format!(
+                    "Make sure the metrics server is running on http://127.0.0.1:{}",
+                    app.metrics_port
+                ))
+                .yellow()
+                .centered(),
+            ];
+
+            let block = Block::bordered().border_set(border::THICK);
+            frame.render_widget(Paragraph::new(error_text).block(block), area);
+            return;
+        }
+    }
+
+    if stats.is_empty() {
+        let empty_text = vec![
+            Line::from(""),
+            Line::from("No future statistics found").yellow().centered(),
+            Line::from(""),
+            Line::from("Make sure futures are instrumented and the server is running").centered(),
+        ];
+
+        let block = Block::bordered().border_set(border::THICK);
+        frame.render_widget(Paragraph::new(empty_text).block(block), area);
+        return;
+    }
+
+    // Split the area if calls are being shown
+    let (table_area, calls_area) = if app.show_future_calls {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(area);
+        (chunks[0], Some(chunks[1]))
+    } else {
+        (area, None)
+    };
+
+    let selected_index = app.futures_table_state.selected().unwrap_or(0);
+    let future_position = selected_index + 1; // 1-indexed
+    let total_futures = stats.len();
+
+    futures::render_futures_panel(
+        stats,
+        table_area,
+        frame,
+        &mut app.futures_table_state,
+        app.show_future_calls,
+        app.futures_focus,
+        future_position,
+        total_futures,
+    );
+
+    // Render calls panel if visible
+    if let Some(calls_area) = calls_area {
+        let future_label = app
+            .futures_table_state
+            .selected()
+            .and_then(|i| stats.get(i))
+            .map(|stat| {
+                if stat.label.is_empty() {
+                    stat.id.to_string()
+                } else {
+                    stat.label.clone()
+                }
+            })
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        if let Some(ref calls) = app.future_calls {
+            future_calls::render_calls_panel(
+                calls,
+                &future_label,
+                calls_area,
+                frame,
+                &mut app.future_calls_table_state,
+                app.futures_focus == FuturesFocus::Calls,
+            );
+        } else {
+            let message = if app.paused {
+                "(refresh paused)"
+            } else if app.error_message.is_some() {
+                "(cannot fetch new data)"
+            } else {
+                "(no data)"
+            };
+            future_calls::render_calls_placeholder(&future_label, message, calls_area, frame);
+        }
+    }
+
+    if app.futures_focus == FuturesFocus::Inspect {
+        if let Some(ref inspected_call) = app.inspected_future_call {
+            future_inspect::render_inspect_popup(inspected_call, area, frame);
+        }
+    }
+}
+
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 fn render_tabs(frame: &mut Frame, area: ratatui::layout::Rect, selected_tab: SelectedTab) {
     let create_tab_line = |tab: SelectedTab| {
         let name = if tab == selected_tab {
@@ -428,6 +546,7 @@ fn render_tabs(frame: &mut Frame, area: ratatui::layout::Rect, selected_tab: Sel
     let titles = vec![
         create_tab_line(SelectedTab::Timing),
         create_tab_line(SelectedTab::Memory),
+        create_tab_line(SelectedTab::Futures),
         create_tab_line(SelectedTab::Channels),
         create_tab_line(SelectedTab::Streams),
         create_tab_line(SelectedTab::Threads),

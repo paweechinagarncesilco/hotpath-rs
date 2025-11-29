@@ -3,7 +3,7 @@ use crate::output::{FunctionLogEntry, FunctionLogsJson, FunctionsJson, MetricsPr
 
 #[doc(hidden)]
 pub use cfg_if::cfg_if;
-pub use hotpath_macros::{main, measure, measure_all, skip};
+pub use hotpath_macros::{future_fn, main, measure, measure_all, skip};
 
 // Channels module for instrumenting channels
 pub mod channels;
@@ -11,11 +11,15 @@ pub mod channels;
 // Streams module for instrumenting streams
 pub mod streams;
 
+// Futures module for instrumenting futures
+pub mod futures;
+
 // Threads module for monitoring OS thread metrics
 #[cfg(feature = "threads")]
 pub mod threads;
 
 pub use channels::{Instrument, InstrumentLog};
+pub use futures::{InstrumentFuture, InstrumentFutureLog};
 pub use streams::{InstrumentStream, InstrumentStreamLog};
 
 use crossbeam_channel::Sender;

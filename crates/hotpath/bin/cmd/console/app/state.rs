@@ -1,6 +1,6 @@
 //! UI state management - navigation, selection, and focus handling
 
-use super::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
+use super::{App, ChannelsFocus, FunctionsFocus, FuturesFocus, SelectedTab, StreamsFocus};
 
 #[cfg_attr(feature = "hotpath", hotpath::measure_all)]
 impl App {
@@ -437,5 +437,163 @@ impl App {
             None => 0,
         };
         self.threads_table_state.select(Some(i));
+    }
+
+    // Futures state management methods
+    pub(crate) fn select_previous_future(&mut self) {
+        let count = self.futures.futures.len();
+        if count == 0 {
+            return;
+        }
+
+        let i = match self.futures_table_state.selected() {
+            Some(i) => i.saturating_sub(1),
+            None => 0,
+        };
+        self.futures_table_state.select(Some(i));
+
+        if self.paused && self.show_future_calls {
+            self.future_calls = None;
+        } else if self.show_future_calls {
+            self.refresh_future_calls();
+        }
+    }
+
+    pub(crate) fn select_next_future(&mut self) {
+        let count = self.futures.futures.len();
+        if count == 0 {
+            return;
+        }
+
+        let i = match self.futures_table_state.selected() {
+            Some(i) => (i + 1).min(count - 1),
+            None => 0,
+        };
+        self.futures_table_state.select(Some(i));
+
+        if self.paused && self.show_future_calls {
+            self.future_calls = None;
+        } else if self.show_future_calls {
+            self.refresh_future_calls();
+        }
+    }
+
+    pub(crate) fn toggle_future_calls(&mut self) {
+        let has_valid_selection = self
+            .futures_table_state
+            .selected()
+            .map(|i| i < self.futures.futures.len())
+            .unwrap_or(false);
+
+        if !self.futures.futures.is_empty() && has_valid_selection {
+            if self.show_future_calls {
+                self.hide_future_calls();
+            } else {
+                self.show_future_calls = true;
+                if self.paused {
+                    self.future_calls = None;
+                } else {
+                    self.refresh_future_calls();
+                }
+            }
+        }
+    }
+
+    pub(crate) fn hide_future_calls(&mut self) {
+        self.show_future_calls = false;
+        self.future_calls = None;
+        self.future_calls_table_state.select(None);
+        self.futures_focus = FuturesFocus::Futures;
+    }
+
+    pub(crate) fn focus_futures(&mut self) {
+        self.futures_focus = FuturesFocus::Futures;
+        self.future_calls_table_state.select(None);
+    }
+
+    pub(crate) fn focus_future_calls(&mut self) {
+        if !self.show_future_calls {
+            self.toggle_future_calls();
+        } else if !self.futures.futures.is_empty() {
+            if let Some(ref future_calls) = self.future_calls {
+                if !future_calls.calls.is_empty() {
+                    self.futures_focus = FuturesFocus::Calls;
+                    if self.future_calls_table_state.selected().is_none() {
+                        self.future_calls_table_state.select(Some(0));
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn select_next_future_call(&mut self) {
+        if let Some(ref future_calls) = self.future_calls {
+            let count = future_calls.calls.len();
+            if count > 0 {
+                let i = match self.future_calls_table_state.selected() {
+                    Some(i) => (i + 1).min(count - 1),
+                    None => 0,
+                };
+                self.future_calls_table_state.select(Some(i));
+
+                // Update inspected call if inspect popup is open
+                if self.futures_focus == FuturesFocus::Inspect {
+                    if let Some(call) = future_calls.calls.get(i) {
+                        self.inspected_future_call = Some(call.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn select_previous_future_call(&mut self) {
+        if let Some(ref future_calls) = self.future_calls {
+            let count = future_calls.calls.len();
+            if count > 0 {
+                let i = match self.future_calls_table_state.selected() {
+                    Some(i) => i.saturating_sub(1),
+                    None => 0,
+                };
+                self.future_calls_table_state.select(Some(i));
+
+                // Update inspected call if inspect popup is open
+                if self.futures_focus == FuturesFocus::Inspect {
+                    if let Some(call) = future_calls.calls.get(i) {
+                        self.inspected_future_call = Some(call.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn toggle_future_inspect(&mut self) {
+        if self.futures_focus == FuturesFocus::Inspect {
+            // Closing inspect popup
+            self.futures_focus = FuturesFocus::Calls;
+            self.inspected_future_call = None;
+        } else if self.futures_focus == FuturesFocus::Calls
+            && self.future_calls_table_state.selected().is_some()
+        {
+            // Opening inspect popup - capture the current call
+            if let Some(selected) = self.future_calls_table_state.selected() {
+                if let Some(ref future_calls) = self.future_calls {
+                    if let Some(call) = future_calls.calls.get(selected) {
+                        self.inspected_future_call = Some(call.clone());
+                        self.futures_focus = FuturesFocus::Inspect;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn close_future_inspect_and_refocus_futures(&mut self) {
+        self.inspected_future_call = None;
+        self.hide_future_calls();
+    }
+
+    pub(crate) fn close_future_inspect_only(&mut self) {
+        self.inspected_future_call = None;
+        self.futures_focus = FuturesFocus::Futures;
+        self.future_calls_table_state.select(None);
     }
 }

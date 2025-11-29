@@ -1,6 +1,7 @@
 //! Data management - fetching, updating, and transforming functions/channels
 
 use super::{App, CachedLogs, CachedStreamLogs, SelectedTab};
+use hotpath::futures::FuturesJson as FuturesJsonData;
 use hotpath::streams::StreamsJson;
 use hotpath::threads::ThreadsJson;
 use hotpath::{FunctionLogsJson, FunctionsJson};
@@ -468,7 +469,89 @@ impl App {
                     }
                 }
             }
+            SelectedTab::Futures => {
+                match super::super::http::fetch_futures(&self.agent, self.metrics_port) {
+                    Ok(futures) => {
+                        self.update_futures(futures);
+                    }
+                    Err(e) => {
+                        self.set_error(format!("{}", e));
+                    }
+                }
+            }
         }
         self.last_refresh = Instant::now();
+    }
+
+    pub(crate) fn update_futures(&mut self, futures: FuturesJsonData) {
+        // Capture the currently selected future ID (not index!)
+        let selected_future_id = self
+            .futures_table_state
+            .selected()
+            .and_then(|idx| self.futures.futures.get(idx))
+            .map(|stat| stat.id);
+
+        self.futures = futures;
+        self.last_successful_fetch = Some(Instant::now());
+        self.error_message = None;
+
+        // Try to restore selection to the same future ID
+        if let Some(future_id) = selected_future_id {
+            // Find the new index of the previously selected future
+            if let Some(new_idx) = self
+                .futures
+                .futures
+                .iter()
+                .position(|stat| stat.id == future_id)
+            {
+                self.futures_table_state.select(Some(new_idx));
+            } else {
+                // Future no longer exists, select the last one if available
+                if !self.futures.futures.is_empty() {
+                    self.futures_table_state
+                        .select(Some(self.futures.futures.len() - 1));
+                }
+            }
+        } else if let Some(selected) = self.futures_table_state.selected() {
+            if selected >= self.futures.futures.len() && !self.futures.futures.is_empty() {
+                self.futures_table_state
+                    .select(Some(self.futures.futures.len() - 1));
+            }
+        }
+
+        if self.show_future_calls {
+            self.refresh_future_calls();
+        }
+    }
+
+    pub(crate) fn refresh_future_calls(&mut self) {
+        if self.paused {
+            return;
+        }
+
+        self.future_calls = None;
+
+        if let Some(selected) = self.futures_table_state.selected() {
+            if !self.futures.futures.is_empty() && selected < self.futures.futures.len() {
+                let future_id = self.futures.futures[selected].id;
+                if let Ok(calls) = super::super::http::fetch_future_calls(
+                    &self.agent,
+                    self.metrics_port,
+                    future_id,
+                ) {
+                    self.future_calls = Some(calls);
+
+                    // Ensure calls table selection is valid
+                    if let Some(ref future_calls) = self.future_calls {
+                        let call_count = future_calls.calls.len();
+                        if let Some(selected) = self.future_calls_table_state.selected() {
+                            if selected >= call_count && call_count > 0 {
+                                self.future_calls_table_state.select(Some(call_count - 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

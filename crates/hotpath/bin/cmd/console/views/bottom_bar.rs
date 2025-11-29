@@ -1,4 +1,6 @@
-use crate::cmd::console::app::{ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
+use crate::cmd::console::app::{
+    ChannelsFocus, FunctionsFocus, FuturesFocus, SelectedTab, StreamsFocus,
+};
 use ratatui::{
     layout::Rect,
     style::Stylize,
@@ -20,9 +22,12 @@ const INSPECT_LABEL: &str = " | Inspect ";
 const INSPECT_KEY: &str = "<i> ";
 const CLOSE_LABEL: &str = " | Close ";
 const CLOSE_KEYS: &str = "<i/o/h> ";
+const TOGGLE_CALLS_LABEL: &str = " | Toggle Calls ";
+const TOGGLE_CALLS_KEY: &str = "<o> ";
 
 /// Renders the bottom controls bar showing context-aware keybindings
 #[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn render_help_bar(
     frame: &mut Frame,
     area: Rect,
@@ -30,6 +35,7 @@ pub(crate) fn render_help_bar(
     channels_focus: ChannelsFocus,
     streams_focus: StreamsFocus,
     functions_focus: FunctionsFocus,
+    futures_focus: FuturesFocus,
 ) {
     let controls_line = if selected_tab == SelectedTab::Threads {
         // Threads tab - simple controls, no logs
@@ -40,6 +46,41 @@ pub(crate) fn render_help_bar(
             QUIT_LABEL.into(),
             QUIT_KEY.blue().bold(),
         ])
+    } else if selected_tab == SelectedTab::Futures {
+        // Futures tab - has calls panel
+        match futures_focus {
+            FuturesFocus::Futures => Line::from(vec![
+                NAV_KEYS_FULL.blue().bold(),
+                TOGGLE_CALLS_LABEL.into(),
+                TOGGLE_CALLS_KEY.blue().bold(),
+                PAUSE_LABEL.into(),
+                PAUSE_KEY.blue().bold(),
+                QUIT_LABEL.into(),
+                QUIT_KEY.blue().bold(),
+            ]),
+            FuturesFocus::Calls => Line::from(vec![
+                NAV_KEYS_FULL.blue().bold(),
+                TOGGLE_CALLS_LABEL.into(),
+                TOGGLE_CALLS_KEY.blue().bold(),
+                PAUSE_LABEL.into(),
+                PAUSE_KEY.blue().bold(),
+                INSPECT_LABEL.into(),
+                INSPECT_KEY.blue().bold(),
+                QUIT_LABEL.into(),
+                QUIT_KEY.blue().bold(),
+            ]),
+            FuturesFocus::Inspect => Line::from(vec![
+                NAV_KEYS_FULL.blue().bold(),
+                TOGGLE_CALLS_LABEL.into(),
+                TOGGLE_CALLS_KEY.blue().bold(),
+                PAUSE_LABEL.into(),
+                PAUSE_KEY.blue().bold(),
+                CLOSE_LABEL.into(),
+                CLOSE_KEYS.blue().bold(),
+                QUIT_LABEL.into(),
+                QUIT_KEY.blue().bold(),
+            ]),
+        }
     } else if selected_tab == SelectedTab::Streams {
         match streams_focus {
             StreamsFocus::Streams => Line::from(vec![

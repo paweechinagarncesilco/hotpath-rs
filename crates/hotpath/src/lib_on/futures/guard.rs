@@ -6,27 +6,27 @@ use std::time::Instant;
 
 use prettytable::{Cell, Row, Table};
 
-use crate::channels::{resolve_label, Format};
-use crate::streams::{get_sorted_stream_stats, SerializableStreamStats, StreamsJson};
+use crate::channels::Format;
+use crate::futures::{get_futures_json, init_futures_state, FuturesJson};
 
-/// Builder for creating a StreamsGuard with custom configuration.
+/// Builder for creating a FuturesGuard with custom configuration.
 ///
 /// # Examples
 ///
 /// ```no_run
-/// use streams_console::{StreamsGuardBuilder, Format};
+/// use hotpath::futures::{FuturesGuardBuilder, Format};
 ///
-/// let _guard = StreamsGuardBuilder::new()
+/// let _guard = FuturesGuardBuilder::new()
 ///     .format(Format::JsonPretty)
 ///     .build();
 /// // Statistics will be printed as pretty JSON when _guard is dropped
 /// ```
-pub struct StreamsGuardBuilder {
+pub struct FuturesGuardBuilder {
     format: Format,
 }
 
-impl StreamsGuardBuilder {
-    /// Create a new streams guard builder.
+impl FuturesGuardBuilder {
+    /// Create a new futures guard builder.
     pub fn new() -> Self {
         Self {
             format: Format::default(),
@@ -38,9 +38,9 @@ impl StreamsGuardBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use streams_console::{StreamsGuardBuilder, Format};
+    /// use hotpath::futures::{FuturesGuardBuilder, Format};
     ///
-    /// let _guard = StreamsGuardBuilder::new()
+    /// let _guard = FuturesGuardBuilder::new()
     ///     .format(Format::Json)
     ///     .build();
     /// ```
@@ -49,47 +49,49 @@ impl StreamsGuardBuilder {
         self
     }
 
-    /// Build and return the StreamsGuard.
+    /// Build and return the FuturesGuard.
     /// Statistics will be printed when the guard is dropped.
-    pub fn build(self) -> StreamsGuard {
-        StreamsGuard {
+    pub fn build(self) -> FuturesGuard {
+        init_futures_state();
+        FuturesGuard {
             start_time: Instant::now(),
             format: self.format,
         }
     }
 }
 
-impl Default for StreamsGuardBuilder {
+impl Default for FuturesGuardBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Guard for stream statistics collection.
-/// When dropped, prints a summary of all instrumented streams and their statistics.
+/// Guard for future statistics collection.
+/// When dropped, prints a summary of all instrumented futures and their statistics.
 ///
-/// Use `StreamsGuardBuilder` to create a guard with custom configuration.
+/// Use `FuturesGuardBuilder` to create a guard with custom configuration.
 ///
 /// # Examples
 ///
 /// ```no_run
-/// use streams_console::StreamsGuard;
+/// use hotpath::futures::FuturesGuard;
 ///
-/// let _guard = StreamsGuard::new();
-/// // Your code with instrumented streams here
+/// let _guard = FuturesGuard::new();
+/// // Your code with instrumented futures here
 /// // Statistics will be printed when _guard is dropped
 /// ```
-pub struct StreamsGuard {
+pub struct FuturesGuard {
     start_time: Instant,
     format: Format,
 }
 
-impl StreamsGuard {
-    /// Create a new streams guard with default settings (table format).
+impl FuturesGuard {
+    /// Create a new futures guard with default settings (table format).
     /// Statistics will be printed when this guard is dropped.
     ///
-    /// For custom configuration, use `StreamsGuardBuilder::new()` instead.
+    /// For custom configuration, use `FuturesGuardBuilder::new()` instead.
     pub fn new() -> Self {
+        init_futures_state();
         Self {
             start_time: Instant::now(),
             format: Format::default(),
@@ -102,9 +104,9 @@ impl StreamsGuard {
     /// # Examples
     ///
     /// ```no_run
-    /// use streams_console::{StreamsGuard, Format};
+    /// use hotpath::futures::{FuturesGuard, Format};
     ///
-    /// let _guard = StreamsGuard::new().format(Format::Json);
+    /// let _guard = FuturesGuard::new().format(Format::Json);
     /// ```
     pub fn format(mut self, format: Format) -> Self {
         self.format = format;
@@ -112,69 +114,65 @@ impl StreamsGuard {
     }
 }
 
-impl Default for StreamsGuard {
+impl Default for FuturesGuard {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for StreamsGuard {
+impl Drop for FuturesGuard {
     fn drop(&mut self) {
         let elapsed = self.start_time.elapsed();
-        let streams = get_sorted_stream_stats();
+        let futures_json = get_futures_json();
 
-        if streams.is_empty() {
-            println!("\nNo instrumented streams found.");
+        if futures_json.futures.is_empty() {
+            println!("\nNo instrumented futures found.");
             return;
         }
 
         match self.format {
             Format::Table => {
                 println!(
-                    "\n=== Stream Statistics (runtime: {:.2}s) ===",
+                    "\n=== Future Statistics (runtime: {:.2}s) ===",
                     elapsed.as_secs_f64()
                 );
 
                 let mut table = Table::new();
 
                 table.add_row(Row::new(vec![
-                    Cell::new("Stream"),
-                    Cell::new("State"),
-                    Cell::new("Yielded"),
+                    Cell::new("Future"),
+                    Cell::new("Calls"),
+                    Cell::new("Polls"),
                 ]));
 
-                for stream_stats in streams {
-                    let label = resolve_label(
-                        stream_stats.source,
-                        stream_stats.label.as_deref(),
-                        Some(stream_stats.iter),
-                    );
+                for future_stats in &futures_json.futures {
                     table.add_row(Row::new(vec![
-                        Cell::new(&label),
-                        Cell::new(stream_stats.state.as_str()),
-                        Cell::new(&stream_stats.items_yielded.to_string()),
+                        Cell::new(&future_stats.label),
+                        Cell::new(&future_stats.call_count.to_string()),
+                        Cell::new(&future_stats.total_polls.to_string()),
                     ]));
                 }
 
-                println!("\nStreams:");
+                println!("\nFutures:");
                 table.printstd();
             }
             Format::Json => {
-                let streams_json = StreamsJson {
+                // Update elapsed time to use actual guard elapsed time
+                let json_output = FuturesJson {
                     current_elapsed_ns: elapsed.as_nanos() as u64,
-                    streams: streams.iter().map(SerializableStreamStats::from).collect(),
+                    futures: futures_json.futures,
                 };
-                match serde_json::to_string(&streams_json) {
+                match serde_json::to_string(&json_output) {
                     Ok(json) => println!("{}", json),
                     Err(e) => eprintln!("Failed to serialize statistics to JSON: {}", e),
                 }
             }
             Format::JsonPretty => {
-                let streams_json = StreamsJson {
+                let json_output = FuturesJson {
                     current_elapsed_ns: elapsed.as_nanos() as u64,
-                    streams: streams.iter().map(SerializableStreamStats::from).collect(),
+                    futures: futures_json.futures,
                 };
-                match serde_json::to_string_pretty(&streams_json) {
+                match serde_json::to_string_pretty(&json_output) {
                     Ok(json) => println!("{}", json),
                     Err(e) => eprintln!("Failed to serialize statistics to pretty JSON: {}", e),
                 }

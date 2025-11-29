@@ -1,6 +1,6 @@
 //! Keyboard input handling
 
-use super::{App, ChannelsFocus, FunctionsFocus, SelectedTab, StreamsFocus};
+use super::{App, ChannelsFocus, FunctionsFocus, FuturesFocus, SelectedTab, StreamsFocus};
 use crossterm::event::KeyCode;
 
 #[cfg_attr(feature = "hotpath", hotpath::measure_all)]
@@ -18,14 +18,18 @@ impl App {
                 self.refresh_data();
             }
             KeyCode::Char('3') => {
-                self.switch_to_tab(SelectedTab::Channels);
+                self.switch_to_tab(SelectedTab::Futures);
                 self.refresh_data();
             }
             KeyCode::Char('4') => {
-                self.switch_to_tab(SelectedTab::Streams);
+                self.switch_to_tab(SelectedTab::Channels);
                 self.refresh_data();
             }
             KeyCode::Char('5') => {
+                self.switch_to_tab(SelectedTab::Streams);
+                self.refresh_data();
+            }
+            KeyCode::Char('6') => {
                 self.switch_to_tab(SelectedTab::Threads);
                 self.refresh_data();
             }
@@ -41,6 +45,12 @@ impl App {
                         StreamsFocus::Inspect => self.close_stream_inspect_and_refocus_streams(),
                         StreamsFocus::Logs => self.hide_stream_logs(),
                         StreamsFocus::Streams => self.toggle_stream_logs(),
+                    }
+                } else if self.selected_tab == SelectedTab::Futures {
+                    match self.futures_focus {
+                        FuturesFocus::Inspect => self.close_future_inspect_and_refocus_futures(),
+                        FuturesFocus::Calls => self.hide_future_calls(),
+                        FuturesFocus::Futures => self.toggle_future_calls(),
                     }
                 } else if self.selected_tab == SelectedTab::Threads {
                     // No logs panel for threads tab - do nothing
@@ -62,6 +72,12 @@ impl App {
                     } else {
                         self.focus_streams();
                     }
+                } else if self.selected_tab == SelectedTab::Futures {
+                    if self.futures_focus == FuturesFocus::Inspect {
+                        self.close_future_inspect_only();
+                    } else {
+                        self.focus_futures();
+                    }
                 } else if self.selected_tab.is_functions_tab() {
                     self.focus_functions();
                 }
@@ -71,6 +87,8 @@ impl App {
                     self.focus_logs();
                 } else if self.selected_tab == SelectedTab::Streams {
                     self.focus_stream_logs();
+                } else if self.selected_tab == SelectedTab::Futures {
+                    self.focus_future_calls();
                 } else if self.selected_tab.is_functions_tab() {
                     self.focus_function_logs();
                 }
@@ -80,6 +98,8 @@ impl App {
                     self.toggle_inspect();
                 } else if self.selected_tab == SelectedTab::Streams {
                     self.toggle_stream_inspect();
+                } else if self.selected_tab == SelectedTab::Futures {
+                    self.toggle_future_inspect();
                 }
             }
             KeyCode::Char('j') | KeyCode::Down => {
@@ -92,6 +112,13 @@ impl App {
                     match self.streams_focus {
                         StreamsFocus::Streams => self.select_next_stream(),
                         StreamsFocus::Logs | StreamsFocus::Inspect => self.select_next_stream_log(),
+                    }
+                } else if self.selected_tab == SelectedTab::Futures {
+                    match self.futures_focus {
+                        FuturesFocus::Futures => self.select_next_future(),
+                        FuturesFocus::Calls | FuturesFocus::Inspect => {
+                            self.select_next_future_call()
+                        }
                     }
                 } else if self.selected_tab == SelectedTab::Threads {
                     self.select_next_thread();
@@ -116,6 +143,13 @@ impl App {
                         StreamsFocus::Streams => self.select_previous_stream(),
                         StreamsFocus::Logs | StreamsFocus::Inspect => {
                             self.select_previous_stream_log()
+                        }
+                    }
+                } else if self.selected_tab == SelectedTab::Futures {
+                    match self.futures_focus {
+                        FuturesFocus::Futures => self.select_previous_future(),
+                        FuturesFocus::Calls | FuturesFocus::Inspect => {
+                            self.select_previous_future_call()
                         }
                     }
                 } else if self.selected_tab == SelectedTab::Threads {
