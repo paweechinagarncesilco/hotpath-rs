@@ -8,9 +8,9 @@ pub mod tests {
             .args([
                 "run",
                 "-p",
-                "test-channels-futures",
+                "test-channels-ftc",
                 "--example",
-                "basic_futures",
+                "basic_ftc",
                 "--features",
                 "hotpath",
             ])
@@ -47,9 +47,9 @@ pub mod tests {
             .args([
                 "run",
                 "-p",
-                "test-channels-futures",
+                "test-channels-ftc",
                 "--example",
-                "basic_json_futures",
+                "basic_json_ftc",
                 "--features",
                 "hotpath",
             ])
@@ -84,9 +84,9 @@ pub mod tests {
             .args([
                 "run",
                 "-p",
-                "test-channels-futures",
+                "test-channels-ftc",
                 "--example",
-                "closed_futures",
+                "closed_ftc",
                 "--features",
                 "hotpath",
             ])
@@ -123,9 +123,9 @@ pub mod tests {
             .args([
                 "run",
                 "-p",
-                "test-channels-futures",
+                "test-channels-ftc",
                 "--example",
-                "oneshot_closed_futures",
+                "oneshot_closed_ftc",
                 "--features",
                 "hotpath",
             ])
@@ -159,9 +159,9 @@ pub mod tests {
             .args([
                 "run",
                 "-p",
-                "test-channels-futures",
+                "test-channels-ftc",
                 "--example",
-                "iter_futures",
+                "iter_ftc",
                 "--features",
                 "hotpath",
             ])
@@ -183,9 +183,9 @@ pub mod tests {
             "bounded",
             "bounded-2",
             "bounded-3",
-            "examples/iter_futures.rs:58",
-            "examples/iter_futures.rs:58-2",
-            "examples/iter_futures.rs:58-3",
+            "examples/iter_ftc.rs:58",
+            "examples/iter_ftc.rs:58-2",
+            "examples/iter_ftc.rs:58-3",
         ];
 
         for expected in all_expected {
@@ -202,9 +202,9 @@ pub mod tests {
             .args([
                 "run",
                 "-p",
-                "test-channels-futures",
+                "test-channels-ftc",
                 "--example",
-                "slow_consumer_futures",
+                "slow_consumer_ftc",
                 "--features",
                 "hotpath",
             ])
@@ -239,9 +239,9 @@ pub mod tests {
             .args([
                 "run",
                 "-p",
-                "test-channels-futures",
+                "test-channels-ftc",
                 "--example",
-                "basic_futures",
+                "basic_ftc",
                 "--features",
                 "hotpath",
             ])
@@ -279,7 +279,7 @@ pub mod tests {
             panic!("Failed after 12 retries: {}", error);
         }
 
-        let all_expected = ["basic_futures.rs", "bounded-channel", "Actor 1"];
+        let all_expected = ["basic_ftc.rs", "bounded-channel", "Actor 1"];
         for expected in all_expected {
             assert!(
                 json_text.contains(expected),

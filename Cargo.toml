@@ -6,7 +6,7 @@ members = [
     "crates/test-smol-async",
     "crates/test-all-features",
     "crates/test-channels-crossbeam",
-    "crates/test-channels-futures",
+    "crates/test-channels-ftc",
     "crates/test-channels-std",
     "crates/test-streams",
     "crates/test-channels-tokio",
