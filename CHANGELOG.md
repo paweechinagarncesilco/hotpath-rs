@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.6] - 2025-12-02
+
+### 🚀 Features
+
+- Add futures instrumentation
+- Display results of measured functions
+
+### 🐛 Bug Fixes
+
+- Use release profile for benchmark
+
+### 🚜 Refactor
+
+- Rename module
+- Rename futures channels to ftc
+
+### ⚡ Performance
+
+- Measure alloc mode overhead separately
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.7.6
+
 ## [0.7.5] - 2025-11-27
 
 ### 🚀 Features
