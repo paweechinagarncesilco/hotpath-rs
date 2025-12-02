@@ -1,4 +1,4 @@
-use super::super::super::widgets::formatters::format_time_ago;
+use super::super::super::widgets::formatters::{format_time_ago, truncate_right};
 use hotpath::{FunctionLogsJson, ProfilingMode};
 use ratatui::{
     layout::{Constraint, Rect},
@@ -48,6 +48,12 @@ pub(crate) fn render_function_logs_panel(
                 .add_modifier(Modifier::BOLD),
         ));
 
+    // Calculate available width for Result column
+    // Fixed columns: Index(7) + Mem(10) + Objects(9) + Ago(12) + TID(10) + spacing(10) + borders(2) + highlight(3) = 63
+    let inner_width = area.width.saturating_sub(2); // borders
+    let fixed_width: u16 = 7 + 10 + 9 + 12 + 10 + 10 + 3; // columns + spacing + highlight
+    let result_width = (inner_width.saturating_sub(fixed_width) as usize).max(20);
+
     if let Some(function_logs_data) = current_function_logs {
         // Memory tab always shows memory allocation data
         let headers = Row::new(vec![
@@ -76,6 +82,11 @@ pub(crate) fn render_function_logs_panel(
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
             ),
+            Cell::from("Result").style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]);
 
         let total_invocations = function_logs_data.count;
@@ -84,34 +95,42 @@ pub(crate) fn render_function_logs_panel(
             .logs
             .iter()
             .enumerate()
-            .map(|(idx, &(value, elapsed_nanos, count, tid))| {
-                let time_ago_str = if total_elapsed >= elapsed_nanos {
-                    let nanos_ago = total_elapsed - elapsed_nanos;
+            .map(|(idx, entry)| {
+                let time_ago_str = if total_elapsed >= entry.elapsed_nanos {
+                    let nanos_ago = total_elapsed - entry.elapsed_nanos;
                     format_time_ago(nanos_ago)
                 } else {
                     "now".to_string()
                 };
 
-                let mem_str = value.map_or("N/A".to_string(), |v| hotpath::format_bytes(v));
-                let obj_str = count.map_or("N/A".to_string(), |c| c.to_string());
+                let mem_str = entry
+                    .value
+                    .map_or("N/A".to_string(), |v| hotpath::format_bytes(v));
+                let obj_str = entry
+                    .alloc_count
+                    .map_or("N/A".to_string(), |c| c.to_string());
                 let invocation_number = total_invocations - idx;
+                let result_str = entry.result.as_deref().unwrap_or("N/A");
+                let result_truncated = truncate_right(result_str, result_width);
 
                 Row::new(vec![
                     Cell::from(format!("{}", invocation_number)),
                     Cell::from(mem_str),
                     Cell::from(obj_str),
                     Cell::from(time_ago_str),
-                    Cell::from(tid.map_or("N/A".to_string(), |t| t.to_string())),
+                    Cell::from(entry.tid.map_or("N/A".to_string(), |t| t.to_string())),
+                    Cell::from(result_truncated),
                 ])
             })
             .collect();
 
         let widths = [
             Constraint::Length(7),  // Index column
-            Constraint::Min(10),    // Mem column
+            Constraint::Length(10), // Mem column
             Constraint::Length(9),  // Objects column
             Constraint::Length(12), // Ago column
             Constraint::Length(10), // TID column
+            Constraint::Min(20),    // Result column (flexible)
         ]
         .as_slice();
 
