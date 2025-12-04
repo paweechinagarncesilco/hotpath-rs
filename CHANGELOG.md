@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2025-12-04
+
+### 🚀 Features
+
+- Lib noop as nonoptional dependency
+
+### 🚜 Refactor
+
+- Update readme, initial cleanup
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.8.0
+
 ## [0.7.6] - 2025-12-02
 
 ### 🚀 Features
