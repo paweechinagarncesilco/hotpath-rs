@@ -10,6 +10,37 @@ use std::time::Duration;
 #[cfg(feature = "hotpath")]
 use crate::FunctionStats;
 
+/// Find the nearest valid char boundary at or before `index`.
+/// Used to safely truncate UTF-8 strings from the right.
+pub fn floor_char_boundary(s: &str, index: usize) -> usize {
+    s.char_indices()
+        .map(|(i, _)| i)
+        .take_while(|&i| i <= index)
+        .last()
+        .unwrap_or(0)
+}
+
+/// Find the nearest valid char boundary at or after `index`.
+/// Used to safely truncate UTF-8 strings from the left.
+pub fn ceil_char_boundary(s: &str, index: usize) -> usize {
+    s.char_indices()
+        .map(|(i, _)| i)
+        .find(|&i| i >= index)
+        .unwrap_or(s.len())
+}
+
+pub const MAX_RESULT_LEN: usize = 1536;
+
+/// Truncate a result string to MAX_RESULT_LEN, respecting UTF-8 char boundaries.
+pub fn truncate_result(s: String) -> String {
+    if s.len() <= MAX_RESULT_LEN {
+        s
+    } else {
+        let end = floor_char_boundary(&s, MAX_RESULT_LEN.saturating_sub(3));
+        format!("{}...", &s[..end])
+    }
+}
+
 /// Represents different types of profiling metrics with their values.
 ///
 /// This enum wraps metric values with type information, allowing the reporting
@@ -721,5 +752,44 @@ mod tests {
             MetricType::DurationNs(125041)
         ));
         assert!(matches!(html_response_row[4], MetricType::Percentage(62)));
+    }
+}
+
+#[cfg(test)]
+mod truncation_tests {
+    use super::*;
+
+    #[test]
+    fn test_truncate_result() {
+        let truncate_point = MAX_RESULT_LEN.saturating_sub(3);
+
+        let test_cases: Vec<(&str, String)> = vec![
+            (
+                "japanese at boundary",
+                format!("{}リプライ", "a".repeat(truncate_point - 2)),
+            ),
+            ("emoji", "🦀".repeat(500)),
+            ("chinese", "拥抱中文字符测试".repeat(200)),
+            (
+                "2-byte at boundary",
+                format!("{}ñoño", "a".repeat(truncate_point - 1)),
+            ),
+        ];
+
+        for (name, input) in test_cases {
+            let result = truncate_result(input.clone());
+            assert!(
+                result.chars().count() > 0,
+                "{}: result should have chars",
+                name
+            );
+            if input.len() > MAX_RESULT_LEN {
+                assert!(
+                    result.ends_with("..."),
+                    "{}: truncated result should end with '...'",
+                    name
+                );
+            }
+        }
     }
 }

@@ -13,7 +13,6 @@ mod collector;
 #[path = "threads/collector_linux.rs"]
 mod collector;
 
-// Re-export JSON types from json module
 pub use crate::json::{ThreadMetrics, ThreadsJson};
 
 pub fn thread_metrics_with_percentage(

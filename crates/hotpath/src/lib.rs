@@ -40,8 +40,9 @@ pub use lib_on::threads;
 pub(crate) mod output;
 #[cfg(any(feature = "hotpath", feature = "ci", feature = "tui"))]
 pub use output::{
-    format_bytes, format_duration, shorten_function_name, FunctionLogsJson, FunctionsDataJson,
-    FunctionsJson, MetricType, MetricsProvider, ProfilingMode, Reporter,
+    ceil_char_boundary, floor_char_boundary, format_bytes, format_duration, shorten_function_name,
+    truncate_result, FunctionLogsJson, FunctionsDataJson, FunctionsJson, MetricType,
+    MetricsProvider, ProfilingMode, Reporter, MAX_RESULT_LEN,
 };
 
 #[cfg(all(feature = "hotpath", not(feature = "hotpath-off")))]

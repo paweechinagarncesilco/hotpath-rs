@@ -20,7 +20,7 @@ cfg_if::cfg_if! {
     }
 }
 
-pub(crate) const MAX_RESULT_LEN: usize = 1536;
+pub(crate) use crate::output::truncate_result;
 
 impl MeasurementGuard {
     pub fn build(measurement_name: &'static str, wrapper: bool, _is_async: bool) -> Self {
@@ -103,14 +103,6 @@ where
     let result = f().await;
     guard.finish_with_result(&result);
     result
-}
-
-pub(crate) fn truncate_result(s: String) -> String {
-    if s.len() <= MAX_RESULT_LEN {
-        s
-    } else {
-        format!("{}...", &s[..MAX_RESULT_LEN.saturating_sub(3)])
-    }
 }
 
 pub(crate) static FUNCTIONS_STATE: OnceLock<ArcSwapOption<RwLock<FunctionsState>>> =
