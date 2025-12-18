@@ -1,4 +1,4 @@
-name: hotpath-profile
+name: hotpath-profile-macos
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   profile:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -102,6 +102,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: profile-metrics
+          name: profile-metrics-macos
           path: /tmp/metrics/
           retention-days: 1

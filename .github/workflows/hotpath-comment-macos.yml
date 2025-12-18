@@ -1,8 +1,8 @@
-name: hotpath-comment
+name: hotpath-comment-macos
 
 on:
   workflow_run:
-    workflows: ["hotpath-profile"]
+    workflows: ["hotpath-profile-macos"]
     types:
       - completed
 
@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: profile-metrics
+          name: profile-metrics-macos
           path: /tmp/metrics/
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
@@ -45,7 +45,7 @@ jobs:
             --base-metrics "$BASE_METRICS" \
             --github-token "$GH_TOKEN" \
             --pr-number "$PR_NUMBER" \
-            --benchmark-id "noop-timing"
+            --benchmark-id "noop-timing_macos"
 
       - name: Post PR comment - alloc timing
         env:
@@ -62,7 +62,7 @@ jobs:
             --base-metrics "$BASE_METRICS" \
             --github-token "$GH_TOKEN" \
             --pr-number "$PR_NUMBER" \
-            --benchmark-id "alloc-timing"
+            --benchmark-id "alloc-timing_macos"
 
       - name: Post PR comment - alloc alloc
         env:
@@ -79,4 +79,4 @@ jobs:
             --base-metrics "$BASE_METRICS" \
             --github-token "$GH_TOKEN" \
             --pr-number "$PR_NUMBER" \
-            --benchmark-id "alloc-alloc"
+            --benchmark-id "alloc-alloc_macos"

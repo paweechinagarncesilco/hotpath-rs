@@ -1,0 +1,107 @@
+name: hotpath-profile-linux
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - id: head_noop_timing
+        env:
+          HOTPATH_JSON: true
+        run: |
+          # Run head noop benchmark (timing mode)
+          {
+            echo 'metrics<<EOF'
+            cargo run --release --example benchmark_noop --features='hotpath' | grep '^{"hotpath_profiling_mode"'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - id: head_alloc_timing
+        env:
+          HOTPATH_JSON: true
+        run: |
+          # Run head alloc benchmark (timing mode)
+          {
+            echo 'metrics<<EOF'
+            cargo run --release --example benchmark_alloc --features='hotpath' | grep '^{"hotpath_profiling_mode"'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - id: head_alloc_alloc
+        env:
+          HOTPATH_JSON: true
+        run: |
+          # Run head alloc benchmark (alloc mode)
+          {
+            echo 'metrics<<EOF'
+            cargo run --release --example benchmark_alloc --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout base
+        run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+
+      - id: base_noop_timing
+        env:
+          HOTPATH_JSON: true
+        run: |
+          # Run base noop benchmark (timing mode)
+          {
+            echo 'metrics<<EOF'
+            cargo run --release --example benchmark_noop --features='hotpath' | grep '^{"hotpath_profiling_mode"'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - id: base_alloc_timing
+        env:
+          HOTPATH_JSON: true
+        run: |
+          # Run base alloc benchmark (timing mode)
+          {
+            echo 'metrics<<EOF'
+            cargo run --release --example benchmark_alloc --features='hotpath' | grep '^{"hotpath_profiling_mode"'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - id: base_alloc_alloc
+        env:
+          HOTPATH_JSON: true
+        run: |
+          # Run base alloc benchmark (alloc mode)
+          {
+            echo 'metrics<<EOF'
+            cargo run --release --example benchmark_alloc --features='hotpath,hotpath-alloc' | grep '^{"hotpath_profiling_mode"'
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Save metrics to artifact
+        run: |
+          mkdir -p /tmp/metrics
+          echo '${{ steps.head_noop_timing.outputs.metrics }}' > /tmp/metrics/head_noop_timing.json
+          echo '${{ steps.head_alloc_timing.outputs.metrics }}' > /tmp/metrics/head_alloc_timing.json
+          echo '${{ steps.head_alloc_alloc.outputs.metrics }}' > /tmp/metrics/head_alloc_alloc.json
+          echo '${{ steps.base_noop_timing.outputs.metrics }}' > /tmp/metrics/base_noop_timing.json
+          echo '${{ steps.base_alloc_timing.outputs.metrics }}' > /tmp/metrics/base_alloc_timing.json
+          echo '${{ steps.base_alloc_alloc.outputs.metrics }}' > /tmp/metrics/base_alloc_alloc.json
+          echo '${{ github.event.pull_request.number }}' > /tmp/metrics/pr_number.txt
+          echo '${{ github.base_ref }}' > /tmp/metrics/base_ref.txt
+          echo '${{ github.head_ref }}' > /tmp/metrics/head_ref.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: profile-metrics-linux
+          path: /tmp/metrics/
+          retention-days: 1
