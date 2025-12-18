@@ -16,12 +16,12 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "hotpath-alloc")] {
         use super::alloc::{
             report::{StatsData, TimingStatsData},
-            state::{FunctionStats, FunctionsState, Measurement, process_measurement},
+            state::{FunctionStats, FunctionsState, Measurement, process_measurement, flush_batch},
         };
     } else {
         use super::timing::{
             report::StatsData,
-            state::{FunctionStats, FunctionsState, Measurement, process_measurement},
+            state::{FunctionStats, FunctionsState, Measurement, process_measurement, flush_batch},
         };
     }
 }
@@ -399,7 +399,7 @@ impl FunctionsGuard {
         let worker_recent_logs_limit = recent_logs_limit;
 
         thread::Builder::new()
-            .name("hp-worker".into())
+            .name("hp-functions".into())
             .spawn(move || {
                 let mut local_stats = HashMap::<&'static str, FunctionStats>::new();
 
@@ -408,7 +408,7 @@ impl FunctionsGuard {
                         recv(rx) -> result => {
                             match result {
                                 Ok(measurement) => {
-                                    process_measurement(&mut local_stats, measurement, worker_recent_logs_limit);
+                                    process_measurement(&mut local_stats, measurement, worker_recent_logs_limit, worker_start_time);
                                 }
                                 Err(_) => break, // Channel disconnected
                             }
@@ -416,7 +416,7 @@ impl FunctionsGuard {
                         recv(shutdown_rx) -> _ => {
                             // Process remaining messages after shutdown signal
                             while let Ok(measurement) = rx.try_recv() {
-                                process_measurement(&mut local_stats, measurement, worker_recent_logs_limit);
+                                process_measurement(&mut local_stats, measurement, worker_recent_logs_limit, worker_start_time);
                             }
                             break;
                         }
@@ -596,6 +596,8 @@ impl Drop for FunctionsGuard {
     fn drop(&mut self) {
         let wrapper_guard = self.wrapper_guard.take().unwrap();
         drop(wrapper_guard);
+
+        flush_batch();
 
         let state: Arc<RwLock<FunctionsState>> = Arc::clone(&self.state);
 
