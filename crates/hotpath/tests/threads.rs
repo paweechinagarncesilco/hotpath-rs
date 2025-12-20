@@ -29,7 +29,7 @@ pub mod tests {
         for _attempt in 0..30 {
             sleep(Duration::from_millis(1000));
 
-            match ureq::get("http://127.0.0.1:6775/threads").call() {
+            match ureq::get("http://localhost:6775/threads").call() {
                 Ok(mut response) => {
                     json_text = response
                         .body_mut()

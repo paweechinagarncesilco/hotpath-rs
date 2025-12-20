@@ -682,7 +682,7 @@ pub mod tests {
         for _attempt in 0..18 {
             sleep(Duration::from_millis(500));
 
-            match ureq::get("http://127.0.0.1:6775/functions_timing").call() {
+            match ureq::get("http://localhost:6775/functions_timing").call() {
                 Ok(mut response) => {
                     timing_json = response
                         .body_mut()
@@ -723,7 +723,7 @@ pub mod tests {
             serde_json::from_str(&timing_json).expect("Failed to parse timing JSON");
 
         // Test /functions_alloc endpoint
-        let mut alloc_response = ureq::get("http://127.0.0.1:6775/functions_alloc")
+        let mut alloc_response = ureq::get("http://localhost:6775/functions_alloc")
             .call()
             .expect("Failed to call /functions_alloc endpoint");
 
@@ -758,7 +758,7 @@ pub mod tests {
 
             // Test timing logs endpoint
             let timing_logs_url = format!(
-                "http://127.0.0.1:6775/functions_timing/{}/logs",
+                "http://localhost:6775/functions_timing/{}/logs",
                 encoded_name
             );
             let timing_logs_response = ureq::get(&timing_logs_url)
@@ -773,7 +773,7 @@ pub mod tests {
 
             // Test alloc logs endpoint
             let alloc_logs_url = format!(
-                "http://127.0.0.1:6775/functions_alloc/{}/logs",
+                "http://localhost:6775/functions_alloc/{}/logs",
                 encoded_name
             );
             let alloc_logs_response = ureq::get(&alloc_logs_url)

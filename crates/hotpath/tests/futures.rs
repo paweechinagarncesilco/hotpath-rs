@@ -131,7 +131,7 @@ pub mod tests {
         for _attempt in 0..12 {
             sleep(Duration::from_millis(500));
 
-            match ureq::get("http://127.0.0.1:6775/futures").call() {
+            match ureq::get("http://localhost:6775/futures").call() {
                 Ok(mut response) => {
                     json_text = response
                         .body_mut()
@@ -164,7 +164,7 @@ pub mod tests {
             serde_json::from_str(&json_text).expect("Failed to parse futures JSON");
 
         if let Some(first_future) = futures_response.futures.first() {
-            let calls_url = format!("http://127.0.0.1:6775/futures/{}/calls", first_future.id);
+            let calls_url = format!("http://localhost:6775/futures/{}/calls", first_future.id);
             let mut response = ureq::get(&calls_url)
                 .call()
                 .expect("Failed to call /futures/{id}/calls endpoint");

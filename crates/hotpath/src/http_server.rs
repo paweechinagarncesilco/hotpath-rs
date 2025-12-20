@@ -38,7 +38,7 @@ fn start_metrics_server(port: u16) {
     thread::Builder::new()
             .name("hp-server".into())
             .spawn(move || {
-                let addr = format!("0.0.0.0:{}", port);
+                let addr = format!("localhost:{}", port);
                 let server = match Server::http(&addr) {
                     Ok(s) => s,
                     Err(e) => {

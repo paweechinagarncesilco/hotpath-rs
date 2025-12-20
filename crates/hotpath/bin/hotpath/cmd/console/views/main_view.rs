@@ -156,7 +156,7 @@ fn render_channels_view(frame: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(error_msg.as_str()).red().centered(),
                 Line::from(""),
                 Line::from(format!(
-                    "Make sure the metrics server is running on http://127.0.0.1:{}",
+                    "Make sure the metrics server is running on http://localhost:{}",
                     app.metrics_port
                 ))
                 .yellow()
@@ -277,7 +277,7 @@ fn render_streams_view(frame: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(error_msg.as_str()).red().centered(),
                 Line::from(""),
                 Line::from(format!(
-                    "Make sure the metrics server is running on http://127.0.0.1:{}",
+                    "Make sure the metrics server is running on http://localhost:{}",
                     app.metrics_port
                 ))
                 .yellow()
@@ -396,7 +396,7 @@ fn render_threads_view(frame: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(error_msg.as_str()).red().centered(),
                 Line::from(""),
                 Line::from(format!(
-                    "Make sure the metrics server is running on http://127.0.0.1:{}",
+                    "Make sure the metrics server is running on http://localhost:{}",
                     app.metrics_port
                 ))
                 .yellow()
@@ -451,7 +451,7 @@ fn render_futures_view(frame: &mut Frame, app: &mut App, area: Rect) {
                 Line::from(error_msg.as_str()).red().centered(),
                 Line::from(""),
                 Line::from(format!(
-                    "Make sure the metrics server is running on http://127.0.0.1:{}",
+                    "Make sure the metrics server is running on http://localhost:{}",
                     app.metrics_port
                 ))
                 .yellow()

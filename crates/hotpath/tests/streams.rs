@@ -108,7 +108,7 @@ pub mod tests {
         for _attempt in 0..12 {
             sleep(Duration::from_millis(500));
 
-            match ureq::get("http://127.0.0.1:6774/streams").call() {
+            match ureq::get("http://localhost:6774/streams").call() {
                 Ok(mut response) => {
                     json_text = response
                         .body_mut()
@@ -141,7 +141,7 @@ pub mod tests {
             serde_json::from_str(&json_text).expect("Failed to parse streams JSON");
 
         if let Some(first_stream) = streams_response.streams.first() {
-            let logs_url = format!("http://127.0.0.1:6774/streams/{}/logs", first_stream.id);
+            let logs_url = format!("http://localhost:6774/streams/{}/logs", first_stream.id);
             let response = ureq::get(&logs_url)
                 .call()
                 .expect("Failed to call /streams/:id/logs endpoint");
