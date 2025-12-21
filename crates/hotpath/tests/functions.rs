@@ -863,4 +863,37 @@ pub mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_disable_http_server() {
+        use std::{thread::sleep, time::Duration};
+
+        let mut child = Command::new("cargo")
+            .args([
+                "run",
+                "-p",
+                "test-tokio-async",
+                "--example",
+                "basic",
+                "--features",
+                "hotpath",
+            ])
+            .env("HOTPATH_HTTP_PORT", "6776")
+            .env("HOTPATH_DISABLE_HTTP", "true")
+            .env("TEST_SLEEP_SECONDS", "5")
+            .spawn()
+            .expect("Failed to spawn command");
+
+        sleep(Duration::from_secs(2));
+
+        let result = ureq::get("http://127.0.0.1:6776/functions_timing").call();
+
+        assert!(
+            result.is_err(),
+            "HTTP request should have failed when HOTPATH_DISABLE_HTTP=true"
+        );
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
 }

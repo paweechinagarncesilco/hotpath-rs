@@ -12,6 +12,13 @@ pub(crate) static HTTP_SERVER_PORT: LazyLock<u16> = LazyLock::new(|| {
         .unwrap_or(6770)
 });
 
+pub(crate) static HTTP_SERVER_DISABLED: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("HOTPATH_DISABLE_HTTP")
+        .ok()
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false)
+});
+
 pub(crate) static RECV_TIMEOUT_MS: u64 = 250;
 
 use crate::channels::{get_channel_logs, get_channels_json};
@@ -26,6 +33,9 @@ use tiny_http::{Header, Request, Response, Server};
 static HTTP_SERVER_STARTED: OnceLock<()> = OnceLock::new();
 
 pub(crate) fn start_metrics_server_once(port: u16) {
+    if *HTTP_SERVER_DISABLED {
+        return;
+    }
     HTTP_SERVER_STARTED.get_or_init(|| {
         start_metrics_server(port);
     });
