@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.2] - 2025-12-22
+
+### 🚀 Features
+
+- Allow disabling http server
+
+### 🐛 Bug Fixes
+
+- Use localhost for metrics server [#109] (#110)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update generated with link
+- Update docs
+- Release 0.9.2
+
 ## [0.9.1] - 2025-12-18
 
 ### 🚀 Features
