@@ -11,27 +11,21 @@ impl App {
             KeyCode::Char('p') | KeyCode::Char('P') => self.toggle_pause(),
             KeyCode::Char('1') => {
                 self.switch_to_tab(SelectedTab::Timing);
-                self.refresh_data();
             }
             KeyCode::Char('2') => {
                 self.switch_to_tab(SelectedTab::Memory);
-                self.refresh_data();
             }
             KeyCode::Char('3') => {
                 self.switch_to_tab(SelectedTab::Futures);
-                self.refresh_data();
             }
             KeyCode::Char('4') => {
                 self.switch_to_tab(SelectedTab::Channels);
-                self.refresh_data();
             }
             KeyCode::Char('5') => {
                 self.switch_to_tab(SelectedTab::Streams);
-                self.refresh_data();
             }
             KeyCode::Char('6') => {
                 self.switch_to_tab(SelectedTab::Threads);
-                self.refresh_data();
             }
             KeyCode::Char('o') | KeyCode::Char('O') => {
                 if self.selected_tab == SelectedTab::Channels {
@@ -64,7 +58,7 @@ impl App {
                         }
                         FunctionsFocus::Functions => {
                             self.toggle_function_logs();
-                            self.fetch_function_logs_if_open(self.metrics_port);
+                            self.request_function_logs_if_open();
                         }
                     }
                 }
@@ -142,7 +136,7 @@ impl App {
                     match self.functions_focus {
                         FunctionsFocus::Functions => {
                             self.next_function();
-                            self.update_and_fetch_function_logs(self.metrics_port);
+                            self.update_and_request_function_logs();
                         }
                         FunctionsFocus::Logs | FunctionsFocus::Inspect => {
                             self.select_next_function_log()
@@ -176,7 +170,7 @@ impl App {
                     match self.functions_focus {
                         FunctionsFocus::Functions => {
                             self.previous_function();
-                            self.update_and_fetch_function_logs(self.metrics_port);
+                            self.update_and_request_function_logs();
                         }
                         FunctionsFocus::Logs | FunctionsFocus::Inspect => {
                             self.select_previous_function_log()
