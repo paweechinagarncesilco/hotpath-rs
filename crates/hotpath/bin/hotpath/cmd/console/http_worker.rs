@@ -7,12 +7,45 @@ use hotpath::json::{
 };
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
-use std::{sync::Arc, time::Duration};
-use tokio::runtime::Runtime;
+use std::{collections::HashMap, sync::Arc, time::Duration};
+use tokio::{runtime::Runtime, task::JoinHandle};
 
-use super::events::{AppEvent, DataRequest, DataResponse};
+use crate::cmd::console::events::{AppEvent, DataRequest, DataResponse};
 
 const HTTP_TIMEOUT_MS: u64 = 2000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum RequestKey {
+    Timing,
+    Memory,
+    Channels,
+    Streams,
+    Threads,
+    Futures,
+    FunctionLogsTiming,
+    FunctionLogsAlloc,
+    ChannelLogs,
+    StreamLogs,
+    FutureCalls,
+}
+
+impl DataRequest {
+    fn key(&self) -> RequestKey {
+        match self {
+            DataRequest::RefreshTiming => RequestKey::Timing,
+            DataRequest::RefreshMemory => RequestKey::Memory,
+            DataRequest::RefreshChannels => RequestKey::Channels,
+            DataRequest::RefreshStreams => RequestKey::Streams,
+            DataRequest::RefreshThreads => RequestKey::Threads,
+            DataRequest::RefreshFutures => RequestKey::Futures,
+            DataRequest::FetchFunctionLogsTiming(_) => RequestKey::FunctionLogsTiming,
+            DataRequest::FetchFunctionLogsAlloc(_) => RequestKey::FunctionLogsAlloc,
+            DataRequest::FetchChannelLogs(_) => RequestKey::ChannelLogs,
+            DataRequest::FetchStreamLogs(_) => RequestKey::StreamLogs,
+            DataRequest::FetchFutureCalls(_) => RequestKey::FutureCalls,
+        }
+    }
+}
 
 pub(crate) fn spawn_http_worker(
     request_rx: Receiver<DataRequest>,
@@ -27,16 +60,25 @@ pub(crate) fn spawn_http_worker(
             .expect("Failed to create HTTP client");
 
         let base_url = Arc::new(format!("http://127.0.0.1:{}", metrics_port));
+        let mut active_tasks: HashMap<RequestKey, JoinHandle<()>> = HashMap::new();
 
         while let Ok(request) = request_rx.recv() {
+            let key = request.key();
+
+            if let Some(handle) = active_tasks.remove(&key) {
+                handle.abort();
+            }
+
             let client = client.clone();
             let base_url = base_url.clone();
             let event_tx = event_tx.clone();
 
-            rt.spawn(async move {
+            let handle = rt.spawn(async move {
                 let response = request.to_route().fetch(&client, &base_url).await;
                 let _ = event_tx.send(AppEvent::Data(response));
             });
+
+            active_tasks.insert(key, handle);
         }
     });
 }
