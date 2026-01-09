@@ -8,6 +8,7 @@ use hotpath::json::{
 };
 use std::collections::HashMap;
 use std::time::Instant;
+use tracing::{trace, warn};
 
 #[hotpath::measure_all]
 impl App {
@@ -406,6 +407,7 @@ impl App {
                 DataRequest::RefreshFutures
             }
         };
+        trace!("Requesting refresh for tab: {}", self.selected_tab.name());
         let _ = self.request_tx.send(request);
         self.last_refresh = Instant::now();
     }
@@ -413,17 +415,20 @@ impl App {
     pub(crate) fn handle_data_response(&mut self, response: DataResponse) {
         match response {
             DataResponse::FunctionsTiming(data) => {
+                trace!("Received timing data: {} functions", data.data.0.len());
                 self.loading_functions = false;
                 self.update_timing_metrics(data);
                 self.request_function_logs_if_open();
             }
             DataResponse::FunctionsAlloc(data) => {
+                trace!("Received alloc data: {} functions", data.data.0.len());
                 self.loading_functions = false;
                 self.memory_available = true;
                 self.update_memory_metrics(data);
                 self.request_function_logs_if_open();
             }
             DataResponse::FunctionsAllocUnavailable => {
+                trace!("Memory profiling unavailable");
                 self.loading_functions = false;
                 self.memory_available = false;
                 self.set_error(
@@ -434,6 +439,7 @@ impl App {
                 function_name: _,
                 logs,
             } => {
+                trace!("Received function timing logs: {} entries", logs.logs.len());
                 self.update_function_logs(logs);
             }
             DataResponse::FunctionLogsTimingNotFound(_) => {
@@ -443,37 +449,59 @@ impl App {
                 function_name: _,
                 logs,
             } => {
+                trace!("Received function alloc logs: {} entries", logs.logs.len());
                 self.update_function_logs(logs);
             }
             DataResponse::FunctionLogsAllocNotFound(_) => {
                 self.clear_function_logs();
             }
             DataResponse::Channels(data) => {
+                trace!("Received channels data: {} channels", data.channels.len());
                 self.loading_channels = false;
                 self.update_channels(data);
             }
             DataResponse::ChannelLogs { channel_id, logs } => {
+                trace!(
+                    "Received channel {} logs: {} sent, {} received",
+                    channel_id,
+                    logs.sent_logs.len(),
+                    logs.received_logs.len()
+                );
                 self.handle_channel_logs(channel_id, logs);
             }
             DataResponse::Streams(data) => {
+                trace!("Received streams data: {} streams", data.streams.len());
                 self.loading_streams = false;
                 self.update_streams(data);
             }
             DataResponse::StreamLogs { stream_id, logs } => {
+                trace!(
+                    "Received stream {} logs: {} entries",
+                    stream_id,
+                    logs.logs.len()
+                );
                 self.handle_stream_logs(stream_id, logs);
             }
             DataResponse::Threads(data) => {
+                trace!("Received threads data: {} threads", data.threads.len());
                 self.loading_threads = false;
                 self.update_threads(data);
             }
             DataResponse::Futures(data) => {
+                trace!("Received futures data: {} futures", data.futures.len());
                 self.loading_futures = false;
                 self.update_futures(data);
             }
             DataResponse::FutureCalls { future_id, calls } => {
+                trace!(
+                    "Received future {} calls: {} entries",
+                    future_id,
+                    calls.calls.len()
+                );
                 self.handle_future_calls(future_id, calls);
             }
             DataResponse::Error(e) => {
+                warn!("Data fetch error: {}", e);
                 self.loading_functions = false;
                 self.loading_channels = false;
                 self.loading_streams = false;

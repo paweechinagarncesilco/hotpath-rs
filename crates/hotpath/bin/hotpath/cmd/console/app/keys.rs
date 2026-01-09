@@ -2,12 +2,17 @@
 
 use super::{App, ChannelsFocus, FunctionsFocus, FuturesFocus, SelectedTab, StreamsFocus};
 use crossterm::event::KeyCode;
+use tracing::debug;
 
 #[hotpath::measure_all]
 impl App {
     pub(crate) fn handle_key_event(&mut self, key_code: KeyCode) {
+        debug!("Key pressed: {:?}", key_code);
         match key_code {
-            KeyCode::Char('q') | KeyCode::Char('Q') => self.exit(),
+            KeyCode::Char('q') | KeyCode::Char('Q') => {
+                debug!("Exiting application");
+                self.exit();
+            }
             KeyCode::Char('p') | KeyCode::Char('P') => self.toggle_pause(),
             KeyCode::Char('1') => {
                 self.switch_to_tab(SelectedTab::Timing);

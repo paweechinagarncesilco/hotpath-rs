@@ -11,6 +11,30 @@ mod widgets;
 use app::App;
 use clap::Parser;
 use eyre::Result;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+
+fn init_logging() {
+    let offset = time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC);
+    let time_format =
+        time::format_description::parse("[year]-[month]-[day]T[hour]:[minute]:[second]").unwrap();
+    let timer = tracing_subscriber::fmt::time::OffsetTime::new(offset, time_format);
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("error"));
+
+    std::fs::create_dir_all("log").expect("failed to create log directory");
+    let log_file = std::fs::File::create("log/development.log").expect("failed to create log file");
+    let file_layer = fmt::layer()
+        .with_writer(log_file)
+        .with_ansi(false)
+        .with_timer(timer)
+        .with_target(false)
+        .with_thread_ids(false);
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(file_layer)
+        .init();
+}
 
 #[derive(Debug, Parser)]
 pub struct ConsoleArgs {
@@ -28,8 +52,8 @@ pub struct ConsoleArgs {
 #[hotpath::measure_all]
 impl ConsoleArgs {
     pub fn run(&self) -> Result<()> {
-        // Demo auto-instrumenting streams, channels and futures
-        // is only available when the hotpath feature is enabled
+        init_logging();
+
         #[cfg(feature = "hotpath")]
         demo::init();
 

@@ -9,6 +9,7 @@ use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{runtime::Runtime, task::JoinHandle};
+use tracing::{error, info, trace, warn};
 
 use crate::cmd::console::events::{AppEvent, DataRequest, DataResponse};
 
@@ -53,6 +54,7 @@ pub(crate) fn spawn_http_worker(
     metrics_port: u16,
 ) {
     std::thread::spawn(move || {
+        info!("HTTP worker started, connecting to port {}", metrics_port);
         let rt = Runtime::new().expect("Failed to create Tokio runtime");
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(HTTP_TIMEOUT_MS))
@@ -64,9 +66,13 @@ pub(crate) fn spawn_http_worker(
 
         while let Ok(request) = request_rx.recv() {
             let key = request.key();
+            trace!("Received request: {:?}", key);
 
             if let Some(handle) = active_tasks.remove(&key) {
-                handle.abort();
+                if !handle.is_finished() {
+                    trace!("Aborting in-flight request for {:?}", key);
+                    handle.abort();
+                }
             }
 
             let client = client.clone();
@@ -80,6 +86,7 @@ pub(crate) fn spawn_http_worker(
 
             active_tasks.insert(key, handle);
         }
+        info!("HTTP worker shutting down");
     });
 }
 
@@ -92,30 +99,43 @@ trait RouteExt {
 impl RouteExt for Route {
     async fn fetch(&self, client: &reqwest::Client, base_url: &str) -> DataResponse {
         let url = format!("{}{}", base_url, self.to_path());
+        trace!("Fetching {}", url);
 
         let resp = match client.get(&url).send().await {
             Ok(resp) => resp,
-            Err(e) => return DataResponse::Error(format!("Request failed: {}", e)),
+            Err(e) => {
+                warn!("Request failed for {}: {}", url, e);
+                return DataResponse::Error(format!("Request failed: {}", e));
+            }
         };
 
         let status = resp.status();
+        trace!("Response status {} for {}", status, url);
 
         if status == StatusCode::NOT_FOUND {
             if let Some(not_found) = self.not_found_response() {
+                trace!("Resource not found: {}", url);
                 return not_found;
             }
         }
 
         let resp = match resp.error_for_status() {
             Ok(resp) => resp,
-            Err(e) => return DataResponse::Error(format!("HTTP error: {}", e)),
+            Err(e) => {
+                error!("HTTP error for {}: {}", url, e);
+                return DataResponse::Error(format!("HTTP error: {}", e));
+            }
         };
 
         let bytes = match resp.bytes().await {
             Ok(bytes) => bytes,
-            Err(e) => return DataResponse::Error(format!("Read error: {}", e)),
+            Err(e) => {
+                error!("Read error for {}: {}", url, e);
+                return DataResponse::Error(format!("Read error: {}", e));
+            }
         };
 
+        trace!("Received {} bytes from {}", bytes.len(), url);
         self.parse_bytes(&bytes)
     }
 

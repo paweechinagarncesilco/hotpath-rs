@@ -4,6 +4,7 @@ use super::{
     App, ChannelsFocus, FunctionsFocus, FuturesFocus, InspectedFunctionLog, SelectedTab,
     StreamsFocus,
 };
+use tracing::{debug, info};
 
 #[hotpath::measure_all]
 impl App {
@@ -37,9 +38,11 @@ impl App {
 
     pub(crate) fn toggle_pause(&mut self) {
         self.paused = !self.paused;
+        info!("Paused: {}", self.paused);
     }
 
     pub(crate) fn switch_to_tab(&mut self, tab: SelectedTab) {
+        debug!("Switching to tab: {}", tab.name());
         self.selected_tab = tab;
         self.request_refresh_for_current_tab();
     }
