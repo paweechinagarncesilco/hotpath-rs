@@ -191,9 +191,6 @@ impl FunctionsGuardBuilder {
     }
 }
 
-#[deprecated(since = "0.9.0", note = "Renamed to FunctionsGuardBuilder")]
-pub type GuardBuilder = FunctionsGuardBuilder;
-
 #[derive(Debug, Clone)]
 pub struct FunctionStats {}
 
