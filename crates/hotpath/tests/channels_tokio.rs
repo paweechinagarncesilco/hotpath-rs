@@ -10,6 +10,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-tokio --example basic_tokio --features hotpath
     #[test]
     fn test_basic_output() {
         let output = Command::new("cargo")
@@ -51,6 +52,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-tokio --example basic_json_tokio --features hotpath
     #[test]
     fn test_basic_json_output() {
         let output = Command::new("cargo")
@@ -86,6 +88,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-tokio --example closed_tokio --features hotpath
     #[test]
     fn test_closed_channels_output() {
         let output = Command::new("cargo")
@@ -125,6 +128,7 @@ pub mod tests {
         );
     }
 
+    // cargo run -p test-channels-tokio --example oneshot_closed_tokio --features hotpath
     #[test]
     fn test_oneshot_closed_output() {
         let output = Command::new("cargo")
@@ -161,6 +165,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-tokio --example iter_tokio --features hotpath
     #[test]
     fn test_iter_output() {
         let output = Command::new("cargo")
@@ -211,6 +216,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-tokio --example slow_consumer_tokio --features hotpath
     #[test]
     fn test_slow_consumer_no_panic() {
         let output = Command::new("cargo")
@@ -244,12 +250,12 @@ pub mod tests {
         );
     }
 
+    // HOTPATH_HTTP_PORT=6773 TEST_SLEEP_SECONDS=10 cargo run -p test-channels-tokio --example basic_tokio --features hotpath
     #[test]
     fn test_data_endpoints() {
         use hotpath::json::ChannelsJson;
         use std::{thread::sleep, time::Duration};
 
-        // Spawn example process
         let mut child = Command::new("cargo")
             .args([
                 "run",

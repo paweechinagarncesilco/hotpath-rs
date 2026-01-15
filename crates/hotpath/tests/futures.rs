@@ -10,6 +10,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-futures --example basic_futures --features hotpath
     #[test]
     fn test_basic_futures_output() {
         let output = Command::new("cargo")
@@ -49,6 +50,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-futures --example basic_futures --features hotpath
     #[test]
     fn test_futures_aggregation() {
         let output = Command::new("cargo")
@@ -102,12 +104,12 @@ pub mod tests {
         );
     }
 
+    // HOTPATH_HTTP_PORT=6775 TEST_SLEEP_SECONDS=10 cargo run -p test-futures --example basic_futures --features hotpath
     #[test]
     fn test_data_endpoints() {
         use hotpath::json::FuturesJson;
         use std::{thread::sleep, time::Duration};
 
-        // Spawn example process
         let mut child = Command::new("cargo")
             .args([
                 "run",

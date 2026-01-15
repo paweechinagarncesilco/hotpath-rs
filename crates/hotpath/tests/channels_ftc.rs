@@ -10,6 +10,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-ftc --example basic_ftc --features hotpath
     #[test]
     fn test_basic_output() {
         let output = Command::new("cargo")
@@ -49,6 +50,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-ftc --example basic_json_ftc --features hotpath
     #[test]
     fn test_basic_json_output() {
         let output = Command::new("cargo")
@@ -86,6 +88,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-ftc --example closed_ftc --features hotpath
     #[test]
     fn test_closed_channels_output() {
         let output = Command::new("cargo")
@@ -125,6 +128,7 @@ pub mod tests {
         );
     }
 
+    // cargo run -p test-channels-ftc --example oneshot_closed_ftc --features hotpath
     #[test]
     fn test_oneshot_closed_output() {
         let output = Command::new("cargo")
@@ -161,6 +165,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-ftc --example iter_ftc --features hotpath
     #[test]
     fn test_iter_output() {
         let output = Command::new("cargo")
@@ -208,6 +213,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-ftc --example slow_consumer_ftc --features hotpath
     #[test]
     fn test_slow_consumer_no_panic() {
         let output = Command::new("cargo")
@@ -241,12 +247,12 @@ pub mod tests {
         );
     }
 
+    // HOTPATH_HTTP_PORT=6772 TEST_SLEEP_SECONDS=10 cargo run -p test-channels-ftc --example basic_ftc --features hotpath
     #[test]
     fn test_data_endpoints() {
         use hotpath::json::ChannelsJson;
         use std::{thread::sleep, time::Duration};
 
-        // Spawn example process
         let mut child = Command::new("cargo")
             .args([
                 "run",

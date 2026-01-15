@@ -10,6 +10,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-crossbeam --example basic_crossbeam --features hotpath
     #[test]
     fn test_basic_output() {
         let output = Command::new("cargo")
@@ -51,6 +52,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-crossbeam --example closed_crossbeam --features hotpath
     #[test]
     fn test_closed_channels_output() {
         let output = Command::new("cargo")
@@ -89,6 +91,7 @@ pub mod tests {
         );
     }
 
+    // cargo run -p test-channels-crossbeam --example basic_json_crossbeam --features hotpath
     #[test]
     fn test_basic_json_output() {
         let output = Command::new("cargo")
@@ -122,6 +125,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-crossbeam --example iter_crossbeam --features hotpath
     #[test]
     fn test_iter_output() {
         let output = Command::new("cargo")
@@ -166,6 +170,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-channels-crossbeam --example slow_consumer_crossbeam --features hotpath
     #[test]
     fn test_slow_consumer_no_panic() {
         let output = Command::new("cargo")
@@ -199,12 +204,12 @@ pub mod tests {
         );
     }
 
+    // HOTPATH_HTTP_PORT=6771 TEST_SLEEP_SECONDS=10 cargo run -p test-channels-crossbeam --example basic_crossbeam --features hotpath
     #[test]
     fn test_data_endpoints() {
         use hotpath::json::ChannelsJson;
         use std::{thread::sleep, time::Duration};
 
-        // Spawn example process
         let mut child = Command::new("cargo")
             .args([
                 "run",

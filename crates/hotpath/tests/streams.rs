@@ -2,6 +2,7 @@
 pub mod tests {
     use std::process::Command;
 
+    // cargo run -p test-streams --example basic_streams --features hotpath
     #[test]
     fn test_basic_streams_output() {
         let output = Command::new("cargo")
@@ -45,6 +46,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-streams --example basic_streams --features hotpath
     #[test]
     fn test_streams_closed_state() {
         let output = Command::new("cargo")
@@ -78,12 +80,12 @@ pub mod tests {
         );
     }
 
+    // HOTPATH_HTTP_PORT=6774 TEST_SLEEP_SECONDS=10 cargo run -p test-streams --example basic_streams --features hotpath
     #[test]
     fn test_data_endpoints() {
         use hotpath::streams::StreamsJson;
         use std::{thread::sleep, time::Duration};
 
-        // Spawn example process
         let mut child = Command::new("cargo")
             .args([
                 "run",

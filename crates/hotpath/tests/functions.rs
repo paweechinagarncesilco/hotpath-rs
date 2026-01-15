@@ -2,6 +2,7 @@
 pub mod tests {
     use std::process::Command;
 
+    // cargo run -p test-tokio-async --example basic --features hotpath
     #[test]
     fn test_basic_output() {
         let features = ["", "hotpath-alloc", "hotpath-alloc"];
@@ -51,6 +52,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example early_returns --features hotpath
     #[test]
     fn test_early_returns_output() {
         let features = ["hotpath", "hotpath-alloc", "hotpath-alloc"];
@@ -96,6 +98,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example unsupported_async --features hotpath,hotpath-alloc
     #[test]
     fn test_unsupported_async_output() {
         let output = Command::new("cargo")
@@ -122,6 +125,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example main_empty --features hotpath
     #[test]
     fn test_main_empty_params() {
         let output = Command::new("cargo")
@@ -155,6 +159,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example main_percentiles --features hotpath
     #[test]
     fn test_main_percentiles_param() {
         let output = Command::new("cargo")
@@ -193,6 +198,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example main_format --features hotpath
     #[test]
     fn test_main_format_param() {
         let output = Command::new("cargo")
@@ -229,6 +235,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example main_percentiles_format --features hotpath
     #[test]
     fn test_main_percentiles_format_params() {
         let output = Command::new("cargo")
@@ -266,6 +273,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-smol-async --example basic_smol --features hotpath,hotpath-alloc -- --nocapture
     #[test]
     fn test_async_smol_alloc_profiling_output() {
         let output = Command::new("cargo")
@@ -300,6 +308,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-all-features --example basic_all_features --all-features
     #[test]
     fn test_all_features_output() {
         let output = Command::new("cargo")
@@ -332,6 +341,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example csv_file_reporter --features hotpath
     #[test]
     fn test_csv_file_reporter_output() {
         use std::fs;
@@ -387,6 +397,7 @@ pub mod tests {
         fs::remove_file(report_path).ok();
     }
 
+    // RUST_LOG=info cargo run -p test-tokio-async --example tracing_reporter --features hotpath
     #[test]
     fn test_tracing_reporter_output() {
         let output = Command::new("cargo")
@@ -427,6 +438,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example no_op_block
     #[test]
     fn test_no_op_block_output() {
         let output = Command::new("cargo")
@@ -444,6 +456,7 @@ pub mod tests {
         assert!(stdout.contains("custom_block output"));
     }
 
+    // cargo run -p test-tokio-async --example custom_guard --features hotpath
     #[test]
     fn test_custom_guard_output() {
         let output = Command::new("cargo")
@@ -475,6 +488,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example measure_all_mod --features hotpath
     #[test]
     fn test_measure_all_mod_output() {
         let output = Command::new("cargo")
@@ -524,6 +538,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example measure_all_impl --features hotpath
     #[test]
     fn test_measure_all_impl_output() {
         let output = Command::new("cargo")
@@ -565,6 +580,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example limit --features hotpath,hotpath-alloc
     #[test]
     fn test_limit_output() {
         let output = Command::new("cargo")
@@ -612,6 +628,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example multithread_alloc --features hotpath,hotpath-alloc
     #[test]
     fn test_multithread_alloc_no_panic() {
         let test_cases = [
@@ -653,12 +670,12 @@ pub mod tests {
         }
     }
 
+    // HOTPATH_HTTP_PORT=6775 TEST_SLEEP_SECONDS=10 cargo run -p test-tokio-async --example basic --features hotpath,hotpath-alloc
     #[test]
     fn test_data_endpoints() {
         use hotpath::json::FunctionsJson;
         use std::{thread::sleep, time::Duration};
 
-        // Spawn example process as a background child process with HTTP server enabled
         let mut child = Command::new("cargo")
             .args([
                 "run",
@@ -791,6 +808,7 @@ pub mod tests {
         let _ = child.wait();
     }
 
+    // cargo run -p test-tokio-async --example main_timeout --features hotpath
     #[test]
     fn test_main_timeout_output() {
         let output = Command::new("cargo")
@@ -828,6 +846,7 @@ pub mod tests {
         }
     }
 
+    // cargo run -p test-tokio-async --example guard_timeout --features hotpath
     #[test]
     fn test_guard_timeout_output() {
         let output = Command::new("cargo")
@@ -864,6 +883,7 @@ pub mod tests {
         }
     }
 
+    // HOTPATH_HTTP_PORT=6776 HOTPATH_DISABLE_HTTP=true TEST_SLEEP_SECONDS=5 cargo run -p test-tokio-async --example basic --features hotpath
     #[test]
     fn test_disable_http_server() {
         use std::{thread::sleep, time::Duration};

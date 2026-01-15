@@ -5,6 +5,7 @@ pub mod tests {
     use std::thread::sleep;
     use std::time::Duration;
 
+    // HOTPATH_HTTP_PORT=6775 TEST_SLEEP_SECONDS=10 cargo run -p test-tokio-async --example basic --features hotpath
     #[test]
     fn test_threads_endpoint() {
         let mut child = Command::new("cargo")
