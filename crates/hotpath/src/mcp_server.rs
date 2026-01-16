@@ -12,6 +12,8 @@ use std::sync::{Arc, LazyLock, OnceLock};
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
+use crate::functions::{get_functions_alloc_json, get_functions_timing_json};
+
 static MCP_SERVER_PORT: LazyLock<u16> = LazyLock::new(|| {
     std::env::var("HOTPATH_MCP_PORT")
         .ok()
@@ -32,18 +34,37 @@ impl HotPathMcpServer {
         }
     }
 
-    #[tool(description = "Get current time as Unix timestamp")]
-    async fn hotpath_time(&self) -> Result<CallToolResult, McpError> {
+    #[tool(description = "Get timing metrics for all profiled functions")]
+    async fn hotpath_functions_timing(&self) -> Result<CallToolResult, McpError> {
         #[cfg(debug_assertions)]
-        log_debug("Tool called: hotpath_time");
+        log_debug("Tool called: hotpath_functions_timing");
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        Ok(CallToolResult::success(vec![Content::text(
-            now.to_string(),
-        )]))
+        let metrics = get_functions_timing_json();
+        let json = serde_json::to_string(&metrics).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize timing metrics: {}", e), None)
+        })?;
+        Ok(CallToolResult::success(vec![Content::text(json)]))
+    }
+
+    #[tool(description = "Get allocation metrics for all profiled functions")]
+    async fn hotpath_functions_alloc(&self) -> Result<CallToolResult, McpError> {
+        #[cfg(debug_assertions)]
+        log_debug("Tool called: hotpath_functions_alloc");
+
+        match get_functions_alloc_json() {
+            Some(metrics) => {
+                let json = serde_json::to_string(&metrics).map_err(|e| {
+                    McpError::internal_error(
+                        format!("Failed to serialize alloc metrics: {}", e),
+                        None,
+                    )
+                })?;
+                Ok(CallToolResult::success(vec![Content::text(json)]))
+            }
+            None => Ok(CallToolResult::error(vec![Content::text(
+                "Memory profiling not available - enable hotpath-alloc feature",
+            )])),
+        }
     }
 }
 

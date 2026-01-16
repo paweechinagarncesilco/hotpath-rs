@@ -65,7 +65,11 @@ fn init_logging() {
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("error"));
 
     std::fs::create_dir_all("log").expect("failed to create log directory");
-    let log_file = std::fs::File::create("log/development.log").expect("failed to create log file");
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("log/development.log")
+        .expect("failed to open log file");
     let file_layer = fmt::layer()
         .with_writer(log_file)
         .with_ansi(false)
