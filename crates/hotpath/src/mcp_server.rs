@@ -1,3 +1,5 @@
+mod output;
+
 use axum::Router;
 use rmcp::{
     handler::server::tool::ToolRouter,
@@ -15,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 use crate::channels::get_channels_json;
 use crate::functions::{get_functions_alloc_json, get_functions_timing_json};
 use crate::futures::get_futures_json;
+use crate::mcp_server::output::FunctionsMCPJson;
 use crate::streams::get_streams_json;
 use crate::threads::get_threads_json;
 
@@ -43,8 +46,9 @@ impl HotPathMcpServer {
         log_debug("Tool called: hotpath_functions_timing");
 
         let metrics = get_functions_timing_json();
+        let mcp_json = FunctionsMCPJson::from(&metrics);
         Ok(CallToolResult::success(vec![Content::text(to_json(
-            &metrics,
+            &mcp_json,
         )?)]))
     }
 
@@ -53,9 +57,12 @@ impl HotPathMcpServer {
         log_debug("Tool called: hotpath_functions_alloc");
 
         match get_functions_alloc_json() {
-            Some(metrics) => Ok(CallToolResult::success(vec![Content::text(to_json(
-                &metrics,
-            )?)])),
+            Some(metrics) => {
+                let mcp_json = FunctionsMCPJson::from(&metrics);
+                Ok(CallToolResult::success(vec![Content::text(to_json(
+                    &mcp_json,
+                )?)]))
+            }
             None => Ok(CallToolResult::error(vec![Content::text(
                 "Memory profiling not available - enable hotpath-alloc feature",
             )])),

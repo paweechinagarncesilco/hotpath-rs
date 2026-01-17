@@ -11,7 +11,6 @@ mod widgets;
 use app::App;
 use clap::Parser;
 use eyre::Result;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Debug, Parser)]
 pub struct ConsoleArgs {
@@ -58,6 +57,8 @@ impl ConsoleArgs {
 
 #[cfg(feature = "dev")]
 fn init_logging() {
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+
     let offset = time::UtcOffset::current_local_offset().unwrap_or(time::UtcOffset::UTC);
     let time_format =
         time::format_description::parse("[year]-[month]-[day]T[hour]:[minute]:[second]").unwrap();
