@@ -43,7 +43,7 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
         ProfilingMode::Timing
     }
 
-    fn metric_data(&self) -> HashMap<String, Vec<MetricType>> {
+    fn metric_data(&self) -> Vec<(String, Vec<MetricType>)> {
         let wrapper_total = self
             .stats
             .iter()

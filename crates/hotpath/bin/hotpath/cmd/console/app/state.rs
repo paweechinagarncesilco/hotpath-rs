@@ -9,7 +9,7 @@ use tracing::{debug, info};
 #[hotpath::measure_all]
 impl App {
     pub(crate) fn next_function(&mut self) {
-        let function_count = self.active_functions().data.0.len();
+        let function_count = self.active_functions().data.len();
         if function_count == 0 {
             return;
         }
@@ -23,7 +23,7 @@ impl App {
     }
 
     pub(crate) fn previous_function(&mut self) {
-        let function_count = self.active_functions().data.0.len();
+        let function_count = self.active_functions().data.len();
         if function_count == 0 {
             return;
         }

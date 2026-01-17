@@ -31,8 +31,8 @@ pub(crate) fn render_ui(frame: &mut Frame, app: &mut App) {
         .split(frame.area());
 
     let has_data = match app.selected_tab {
-        SelectedTab::Timing => !app.timing_functions.data.0.is_empty(),
-        SelectedTab::Memory => !app.memory_functions.data.0.is_empty(),
+        SelectedTab::Timing => !app.timing_functions.data.is_empty(),
+        SelectedTab::Memory => !app.memory_functions.data.is_empty(),
         SelectedTab::Channels => !app.channels.channels.is_empty(),
         SelectedTab::Streams => !app.streams.streams.is_empty(),
         SelectedTab::Threads => !app.threads.threads.is_empty(),

@@ -1,6 +1,6 @@
 //! Function profiling module - measures execution time and memory allocations per function.
 
-use std::{collections::HashMap, sync::OnceLock, sync::RwLock, time::Duration};
+use std::{sync::OnceLock, sync::RwLock, time::Duration};
 
 use arc_swap::ArcSwapOption;
 use crossbeam_channel::{bounded, Sender};
@@ -166,7 +166,7 @@ pub(crate) fn get_functions_timing_json() -> FunctionsJson {
         description: "No timing data available yet".to_string(),
         caller_name: "hotpath".to_string(),
         percentiles: vec![95],
-        data: crate::output::FunctionsDataJson(HashMap::new()),
+        data: Vec::new(),
     }
 }
 

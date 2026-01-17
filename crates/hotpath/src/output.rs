@@ -1,5 +1,5 @@
 use serde::{
-    ser::{SerializeMap, Serializer},
+    ser::{SerializeMap, SerializeSeq, Serializer},
     Deserialize, Serialize,
 };
 use std::collections::HashMap;
@@ -244,7 +244,7 @@ struct MetricsJsonRaw {
     total_elapsed: u64,
     description: String,
     caller_name: String,
-    output: serde_json::Value,
+    data: serde_json::Value,
 }
 
 impl TryFrom<MetricsJsonRaw> for FunctionsJson {
@@ -252,14 +252,10 @@ impl TryFrom<MetricsJsonRaw> for FunctionsJson {
 
     fn try_from(raw: MetricsJsonRaw) -> Result<Self, Self::Error> {
         let percentiles =
-            extract_percentiles_from_json(&raw.output).map_err(serde::de::Error::custom)?;
+            extract_percentiles_from_json(&raw.data).map_err(serde::de::Error::custom)?;
 
-        let output = FunctionsDataJson::deserialize_with_mode(
-            raw.output,
-            &raw.hotpath_profiling_mode,
-            &percentiles,
-        )
-        .map_err(serde::de::Error::custom)?;
+        let data = deserialize_functions_data(raw.data, &raw.hotpath_profiling_mode, &percentiles)
+            .map_err(serde::de::Error::custom)?;
 
         Ok(FunctionsJson {
             hotpath_profiling_mode: raw.hotpath_profiling_mode,
@@ -267,7 +263,7 @@ impl TryFrom<MetricsJsonRaw> for FunctionsJson {
             description: raw.description,
             caller_name: raw.caller_name,
             percentiles,
-            data: output,
+            data,
         })
     }
 }
@@ -282,9 +278,8 @@ impl<'de> Deserialize<'de> for FunctionsJson {
     }
 }
 
-/// Structured per-function profiling metrics data.
-#[derive(Debug, Clone)]
-pub struct FunctionsDataJson(pub HashMap<String, Vec<MetricType>>);
+/// Structured per-function profiling metrics data as an ordered list.
+pub type FunctionsDataJson = Vec<(String, Vec<MetricType>)>;
 
 fn build_headers(percentiles: &[u8]) -> Vec<String> {
     let mut headers = vec![
@@ -304,7 +299,7 @@ fn build_headers(percentiles: &[u8]) -> Vec<String> {
 }
 
 struct MetricsDataSerializer<'a> {
-    data: &'a HashMap<String, Vec<MetricType>>,
+    data: &'a [(String, Vec<MetricType>)],
     headers: &'a [String],
 }
 
@@ -313,18 +308,18 @@ impl<'a> Serialize for MetricsDataSerializer<'a> {
     where
         S: Serializer,
     {
-        let mut map = serializer.serialize_map(Some(self.data.len()))?;
+        let mut seq = serializer.serialize_seq(Some(self.data.len()))?;
 
         for (function_name, row) in self.data {
             let function_serializer = FunctionDataSerializer {
                 headers: self.headers,
                 row,
+                function_name,
             };
-
-            map.serialize_entry(function_name, &function_serializer)?;
+            seq.serialize_element(&function_serializer)?;
         }
 
-        map.end()
+        seq.end()
     }
 }
 
@@ -343,11 +338,11 @@ impl Serialize for FunctionsJson {
         state.serialize_field("description", &self.description)?;
         state.serialize_field("caller_name", &self.caller_name)?;
 
-        let output_serializer = MetricsDataSerializer {
-            data: &self.data.0,
+        let data_serializer = MetricsDataSerializer {
+            data: &self.data,
             headers: &headers,
         };
-        state.serialize_field("output", &output_serializer)?;
+        state.serialize_field("data", &data_serializer)?;
 
         state.end()
     }
@@ -356,11 +351,9 @@ impl Serialize for FunctionsJson {
 fn extract_percentiles_from_json(
     value: &serde_json::Value,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let map = value
-        .as_object()
-        .ok_or("Expected object for output field")?;
+    let arr = value.as_array().ok_or("Expected array for data field")?;
 
-    if let Some((_, first_function)) = map.iter().next() {
+    if let Some(first_function) = arr.first() {
         let function_obj = first_function
             .as_object()
             .ok_or("Expected object for function data")?;
@@ -383,47 +376,58 @@ fn extract_percentiles_from_json(
     }
 }
 
-impl FunctionsDataJson {
-    pub fn deserialize_with_mode(
-        value: serde_json::Value,
-        profiling_mode: &ProfilingMode,
-        percentiles: &[u8],
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let map = value
+pub fn deserialize_functions_data(
+    value: serde_json::Value,
+    profiling_mode: &ProfilingMode,
+    percentiles: &[u8],
+) -> Result<FunctionsDataJson, Box<dyn std::error::Error>> {
+    let headers = build_headers(percentiles);
+    let arr = value.as_array().ok_or("Expected array for data field")?;
+    let mut data = Vec::with_capacity(arr.len());
+
+    for function_data in arr {
+        let function_obj = function_data
             .as_object()
-            .ok_or("Expected object for output field")?;
+            .ok_or("Expected object for function data")?;
 
-        let headers = build_headers(percentiles);
-        let mut data = HashMap::new();
+        let function_name = function_obj
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or("Expected 'name' field in function data")?
+            .to_string();
 
-        for (function_name, function_data) in map {
-            let function_obj = function_data
-                .as_object()
-                .ok_or("Expected object for function data")?;
-
-            let mut row = Vec::new();
-            for header in headers.iter().skip(1) {
-                // Convert header to JSON key format (lowercase, replace spaces and %)
-                let key = header
-                    .to_lowercase()
-                    .replace(' ', "_")
-                    .replace('%', "percent");
-
-                if let Some(value) = function_obj.get(&key) {
-                    if value.is_null() {
-                        row.push(MetricType::Unsupported);
-                    } else {
-                        let value_u64 = value.as_u64().ok_or("Expected u64 value")?;
-                        let metric_type = create_metric_type(&key, value_u64, profiling_mode);
-                        row.push(metric_type);
-                    }
-                }
-            }
-            data.insert(function_name.clone(), row);
-        }
-
-        Ok(FunctionsDataJson(data))
+        let row = parse_function_row(function_obj, &headers, profiling_mode)?;
+        data.push((function_name, row));
     }
+
+    Ok(data)
+}
+
+fn parse_function_row(
+    function_obj: &serde_json::Map<String, serde_json::Value>,
+    headers: &[String],
+    profiling_mode: &ProfilingMode,
+) -> Result<Vec<MetricType>, Box<dyn std::error::Error>> {
+    let mut row = Vec::new();
+
+    for header in headers.iter().skip(1) {
+        let key = header
+            .to_lowercase()
+            .replace(' ', "_")
+            .replace('%', "percent");
+
+        if let Some(value) = function_obj.get(&key) {
+            if value.is_null() {
+                row.push(MetricType::Unsupported);
+            } else {
+                let value_u64 = value.as_u64().ok_or("Expected u64 value")?;
+                let metric_type = create_metric_type(&key, value_u64, profiling_mode);
+                row.push(metric_type);
+            }
+        }
+    }
+
+    Ok(row)
 }
 
 fn create_metric_type(field_name: &str, value: u64, profiling_mode: &ProfilingMode) -> MetricType {
@@ -448,6 +452,7 @@ fn create_metric_type(field_name: &str, value: u64, profiling_mode: &ProfilingMo
 struct FunctionDataSerializer<'a> {
     headers: &'a [String],
     row: &'a [MetricType],
+    function_name: &'a str,
 }
 
 impl<'a> Serialize for FunctionDataSerializer<'a> {
@@ -455,7 +460,9 @@ impl<'a> Serialize for FunctionDataSerializer<'a> {
     where
         S: Serializer,
     {
-        let mut map = serializer.serialize_map(Some(self.headers.len() - 1))?;
+        let mut map = serializer.serialize_map(Some(self.headers.len()))?;
+
+        map.serialize_entry("name", &self.function_name)?;
 
         for (i, header) in self.headers.iter().enumerate().skip(1) {
             if i - 1 < self.row.len() {
@@ -476,27 +483,6 @@ impl<'a> Serialize for FunctionDataSerializer<'a> {
 /// This trait provides a standardized interface for reporters to access profiling
 /// metrics, regardless of the underlying profiling mode (time or allocation tracking).
 /// Implement [`Reporter`] to use this interface for custom output.
-///
-/// # Examples
-///
-/// ```rust
-/// use hotpath::{Reporter, MetricsProvider};
-/// use std::error::Error;
-///
-/// struct CustomReporter;
-///
-/// impl Reporter for CustomReporter {
-///     fn report(&self, metrics: &dyn MetricsProvider<'_>) -> Result<(), Box<dyn Error>> {
-///         println!("=== {} ===", metrics.description());
-///
-///         for (func_name, metric_values) in metrics.metric_data() {
-///             println!("{}: {} values", func_name, metric_values.len());
-///         }
-///
-///         Ok(())
-///     }
-/// }
-/// ```
 ///
 /// # See Also
 ///
@@ -523,10 +509,9 @@ pub trait MetricsProvider<'a> {
     }
     fn percentiles(&self) -> Vec<u8>;
 
-    fn metric_data(&self) -> HashMap<String, Vec<MetricType>>;
+    fn metric_data(&self) -> Vec<(String, Vec<MetricType>)>;
 
     fn sort_key(&self, metrics: &[MetricType]) -> f64 {
-        // Sort by percentage, higher percentages first
         if let Some(MetricType::Percentage(basis_points)) = metrics.last() {
             *basis_points as f64 / 100.0
         } else {
@@ -535,7 +520,7 @@ pub trait MetricsProvider<'a> {
     }
 
     fn has_unsupported_async(&self) -> bool {
-        false // Default implementation for time-based measurements
+        false
     }
 
     fn entry_counts(&self) -> (usize, usize);
@@ -587,29 +572,32 @@ mod tests {
             "total_elapsed": 125189584,
             "caller_name": "basic::main",
             "description": "Time metrics",
-            "output": {
-                "basic::async_function": {
+            "data": [
+                {
+                    "name": "basic::async_function",
                     "calls": 100,
                     "avg": 1174672,
                     "p95": 1201151,
                     "total": 117467210,
                     "percent_total": 9383
                 },
-                "basic::sync_function": {
+                {
+                    "name": "basic::sync_function",
                     "calls": 100,
                     "avg": 22563,
                     "p95": 33887,
                     "total": 2256381,
                     "percent_total": 180
                 },
-                "custom_block": {
+                {
+                    "name": "custom_block",
                     "calls": 100,
                     "avg": 21936,
                     "p95": 33087,
                     "total": 2193628,
                     "percent_total": 175
                 }
-            }
+            ]
         }"#;
 
         let metrics: FunctionsJson =
@@ -621,13 +609,14 @@ mod tests {
         ));
         assert_eq!(metrics.total_elapsed, 125189584);
         assert_eq!(metrics.caller_name, "basic::main");
-        assert_eq!(metrics.data.0.len(), 3);
-        assert!(metrics.data.0.contains_key("basic::async_function"));
-        assert!(metrics.data.0.contains_key("basic::sync_function"));
-        assert!(metrics.data.0.contains_key("custom_block"));
+        assert_eq!(metrics.data.len(), 3);
 
-        // Verify that timing mode creates Timing MetricTypes for avg, p95, total
-        let first_row = metrics.data.0.values().next().unwrap();
+        let names: Vec<_> = metrics.data.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"basic::async_function"));
+        assert!(names.contains(&"basic::sync_function"));
+        assert!(names.contains(&"custom_block"));
+
+        let first_row = &metrics.data[0].1;
         assert!(matches!(first_row[0], MetricType::CallsCount(_))); // calls
         assert!(matches!(first_row[1], MetricType::DurationNs(_))); // avg
         assert!(matches!(first_row[2], MetricType::DurationNs(_))); // p95
@@ -639,29 +628,36 @@ mod tests {
 
     #[test]
     fn test_serialize_deserialize_roundtrip() {
-        let original_json_str = r#"{
+        let json_str = r#"{
             "hotpath_profiling_mode": "timing",
             "total_elapsed": 125189584,
             "caller_name": "basic::main",
             "description": "Time metrics",
-            "output": {
-                "basic::async_function": {
+            "data": [
+                {
+                    "name": "basic::async_function",
                     "calls": 100,
                     "avg": 1174672,
                     "p95": 1201151,
                     "total": 117467210,
                     "percent_total": 9383
                 }
-            }
+            ]
         }"#;
 
-        let metrics: FunctionsJson =
-            serde_json::from_str(original_json_str).expect("Failed to deserialize");
+        let metrics: FunctionsJson = serde_json::from_str(json_str).expect("Failed to deserialize");
         let serialized_str = serde_json::to_string(&metrics).expect("Failed to serialize");
+        let roundtrip: FunctionsJson =
+            serde_json::from_str(&serialized_str).expect("Failed to deserialize roundtrip");
 
-        let original_json: Value = serde_json::from_str(original_json_str).unwrap();
+        assert_eq!(metrics.data.len(), roundtrip.data.len());
+        assert_eq!(metrics.data[0].0, roundtrip.data[0].0);
+
         let serialized_json: Value = serde_json::from_str(&serialized_str).unwrap();
-        assert_eq!(serialized_json, original_json);
+        let data_arr = serialized_json["data"].as_array().unwrap();
+        assert_eq!(data_arr.len(), 1);
+        assert_eq!(data_arr[0]["name"], "basic::async_function");
+        assert_eq!(data_arr[0]["calls"], Value::Number(100.into()));
     }
 
     #[test]
@@ -671,25 +667,25 @@ mod tests {
             "total_elapsed": 125189584,
             "caller_name": "basic::main",
             "description": "Time metrics",
-            "output": {
-                "test_function": {
+            "data": [
+                {
+                    "name": "test_function",
                     "calls": 42,
                     "avg": 1000,
                     "p95": 2000,
                     "total": 42000,
                     "percent_total": 100
                 }
-            }
+            ]
         }"#;
 
         let metrics: FunctionsJson = serde_json::from_str(json_str).expect("Failed to deserialize");
 
-        // Verify that the internal structure is correctly parsed
         assert_eq!(metrics.percentiles, vec![95]);
-        assert_eq!(metrics.data.0.len(), 1);
-        assert!(metrics.data.0.contains_key("test_function"));
+        assert_eq!(metrics.data.len(), 1);
+        assert_eq!(metrics.data[0].0, "test_function");
 
-        let row = &metrics.data.0["test_function"];
+        let row = &metrics.data[0].1;
         assert_eq!(row.len(), 5); // calls, avg, p95, total, percent_total
     }
 
@@ -700,22 +696,24 @@ mod tests {
             "total_elapsed": 38645741583,
             "caller_name": "server::main",
             "description": "Function execution time metrics.",
-            "output": {
-                "serve_doc_page": {
+            "data": [
+                {
+                    "name": "serve_doc_page",
                     "calls": 5,
                     "avg": null,
                     "p95": null,
                     "total": null,
                     "percent_total": null
                 },
-                "html_response": {
+                {
+                    "name": "html_response",
                     "calls": 5,
                     "avg": 25008,
                     "p95": 33183,
                     "total": 125041,
                     "percent_total": 62
                 }
-            }
+            ]
         }"#;
 
         let metrics: FunctionsJson =
@@ -725,10 +723,16 @@ mod tests {
             metrics.hotpath_profiling_mode,
             ProfilingMode::Timing
         ));
-        assert_eq!(metrics.data.0.len(), 2);
+        assert_eq!(metrics.data.len(), 2);
 
-        // Verify that null values are handled as Unsupported
-        let serve_doc_row = &metrics.data.0["serve_doc_page"];
+        fn find_row<'a>(
+            data: &'a [(String, Vec<MetricType>)],
+            name: &str,
+        ) -> Option<&'a Vec<MetricType>> {
+            data.iter().find(|(n, _)| n == name).map(|(_, row)| row)
+        }
+
+        let serve_doc_row = find_row(&metrics.data, "serve_doc_page").unwrap();
         assert_eq!(serve_doc_row.len(), 5);
         assert!(matches!(serve_doc_row[0], MetricType::CallsCount(5)));
         assert!(matches!(serve_doc_row[1], MetricType::Unsupported)); // avg
@@ -736,8 +740,7 @@ mod tests {
         assert!(matches!(serve_doc_row[3], MetricType::Unsupported)); // total
         assert!(matches!(serve_doc_row[4], MetricType::Unsupported)); // percent_total
 
-        // Verify that normal values still work
-        let html_response_row = &metrics.data.0["html_response"];
+        let html_response_row = find_row(&metrics.data, "html_response").unwrap();
         assert_eq!(html_response_row.len(), 5);
         assert!(matches!(html_response_row[0], MetricType::CallsCount(5)));
         assert!(matches!(

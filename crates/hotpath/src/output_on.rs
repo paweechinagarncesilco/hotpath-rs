@@ -1,9 +1,6 @@
-use crate::output::{
-    shorten_function_name, FunctionsDataJson, FunctionsJson, MetricType, MetricsProvider, Reporter,
-};
+use crate::output::{shorten_function_name, FunctionsJson, MetricType, MetricsProvider, Reporter};
 use colored::*;
 use prettytable::{color, Attr, Cell, Row, Table};
-use std::collections::HashMap;
 use std::time::Duration;
 
 pub(crate) fn get_sorted_measurements(
@@ -195,9 +192,7 @@ impl From<&dyn MetricsProvider<'_>> for FunctionsJson {
     fn from(metrics: &dyn MetricsProvider<'_>) -> Self {
         let hotpath_profiling_mode = metrics.profiling_mode();
         let percentiles = metrics.percentiles();
-
-        let sorted_entries = get_sorted_measurements(metrics);
-        let data: HashMap<String, Vec<MetricType>> = sorted_entries.into_iter().collect();
+        let data = get_sorted_measurements(metrics);
 
         Self {
             hotpath_profiling_mode,
@@ -205,7 +200,7 @@ impl From<&dyn MetricsProvider<'_>> for FunctionsJson {
             description: metrics.description(),
             caller_name: metrics.caller_name().to_string(),
             percentiles,
-            data: FunctionsDataJson(data),
+            data,
         }
     }
 }

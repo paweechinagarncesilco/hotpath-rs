@@ -20,29 +20,24 @@ impl App {
         self.last_successful_fetch = Some(Instant::now());
         self.error_message = None;
 
-        let sorted_entries = Self::get_sorted_measurements_for(&self.timing_functions);
+        let entries = &self.timing_functions.data;
 
         if let Some(function_name) = selected_function_name {
             // Find the new index of the previously selected function in sorted order
-            if let Some(new_idx) = sorted_entries
-                .iter()
-                .position(|(name, _)| name == &function_name)
-            {
+            if let Some(new_idx) = entries.iter().position(|(name, _)| name == &function_name) {
                 self.timing_table_state.select(Some(new_idx));
             } else {
                 // Function no longer exists, select the last one
-                if !sorted_entries.is_empty() {
-                    self.timing_table_state
-                        .select(Some(sorted_entries.len() - 1));
+                if !entries.is_empty() {
+                    self.timing_table_state.select(Some(entries.len() - 1));
                 }
             }
         } else if let Some(selected) = self.timing_table_state.selected() {
             // Bound check: if current selection is now out of bounds
-            if selected >= sorted_entries.len() && !sorted_entries.is_empty() {
-                self.timing_table_state
-                    .select(Some(sorted_entries.len() - 1));
+            if selected >= entries.len() && !entries.is_empty() {
+                self.timing_table_state.select(Some(entries.len() - 1));
             }
-        } else if !sorted_entries.is_empty() {
+        } else if !entries.is_empty() {
             // No selection yet, select first item
             self.timing_table_state.select(Some(0));
         }
@@ -56,29 +51,24 @@ impl App {
         self.last_successful_fetch = Some(Instant::now());
         self.error_message = None;
 
-        let sorted_entries = Self::get_sorted_measurements_for(&self.memory_functions);
+        let entries = &self.memory_functions.data;
 
         if let Some(function_name) = selected_function_name {
             // Find the new index of the previously selected function in sorted order
-            if let Some(new_idx) = sorted_entries
-                .iter()
-                .position(|(name, _)| name == &function_name)
-            {
+            if let Some(new_idx) = entries.iter().position(|(name, _)| name == &function_name) {
                 self.memory_table_state.select(Some(new_idx));
             } else {
                 // Function no longer exists, select the last one
-                if !sorted_entries.is_empty() {
-                    self.memory_table_state
-                        .select(Some(sorted_entries.len() - 1));
+                if !entries.is_empty() {
+                    self.memory_table_state.select(Some(entries.len() - 1));
                 }
             }
         } else if let Some(selected) = self.memory_table_state.selected() {
             // Bound check: if current selection is now out of bounds
-            if selected >= sorted_entries.len() && !sorted_entries.is_empty() {
-                self.memory_table_state
-                    .select(Some(sorted_entries.len() - 1));
+            if selected >= entries.len() && !entries.is_empty() {
+                self.memory_table_state.select(Some(entries.len() - 1));
             }
-        } else if !sorted_entries.is_empty() {
+        } else if !entries.is_empty() {
             // No selection yet, select first item
             self.memory_table_state.select(Some(0));
         }
@@ -165,67 +155,25 @@ impl App {
     }
 
     #[hotpath::measure(log = true)]
-    fn get_sorted_measurements_for(
-        functions: &FunctionsJson,
-    ) -> Vec<(String, Vec<hotpath::MetricType>)> {
-        use hotpath::MetricType;
-
-        let mut entries: Vec<(String, Vec<MetricType>)> = functions
-            .data
-            .0
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-
-        entries.sort_by(|(name_a, metrics_a), (name_b, metrics_b)| {
-            let percent_a = metrics_a
-                .iter()
-                .find_map(|m| {
-                    if let MetricType::Percentage(p) = m {
-                        Some(*p)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
-
-            let percent_b = metrics_b
-                .iter()
-                .find_map(|m| {
-                    if let MetricType::Percentage(p) = m {
-                        Some(*p)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
-
-            percent_b.cmp(&percent_a).then_with(|| name_a.cmp(name_b))
-        });
-
-        entries
+    pub(crate) fn get_timing_measurements(&self) -> &[(String, Vec<hotpath::MetricType>)] {
+        &self.timing_functions.data
     }
 
     #[hotpath::measure(log = true)]
-    pub(crate) fn get_timing_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
-        Self::get_sorted_measurements_for(&self.timing_functions)
-    }
-
-    #[hotpath::measure(log = true)]
-    pub(crate) fn get_memory_measurements(&self) -> Vec<(String, Vec<hotpath::MetricType>)> {
-        Self::get_sorted_measurements_for(&self.memory_functions)
+    pub(crate) fn get_memory_measurements(&self) -> &[(String, Vec<hotpath::MetricType>)] {
+        &self.memory_functions.data
     }
 
     #[hotpath::measure(log = true)]
     pub(crate) fn selected_function_name(&self) -> Option<String> {
-        let (sorted_entries, table_state) = match self.selected_tab {
+        let (entries, table_state) = match self.selected_tab {
             SelectedTab::Timing => (self.get_timing_measurements(), &self.timing_table_state),
             SelectedTab::Memory => (self.get_memory_measurements(), &self.memory_table_state),
             _ => return None,
         };
         table_state
             .selected()
-            .and_then(|idx| sorted_entries.get(idx).map(|(name, _)| name.clone()))
+            .and_then(|idx| entries.get(idx).map(|(name, _)| name.clone()))
     }
 
     pub(crate) fn update_function_logs(&mut self, function_logs: FunctionLogsJson) {
@@ -415,13 +363,13 @@ impl App {
     pub(crate) fn handle_data_response(&mut self, response: DataResponse) {
         match response {
             DataResponse::FunctionsTiming(data) => {
-                trace!("Received timing data: {} functions", data.data.0.len());
+                trace!("Received timing data: {} functions", data.data.len());
                 self.loading_functions = false;
                 self.update_timing_metrics(data);
                 self.request_function_logs_if_open();
             }
             DataResponse::FunctionsAlloc(data) => {
-                trace!("Received alloc data: {} functions", data.data.0.len());
+                trace!("Received alloc data: {} functions", data.data.len());
                 self.loading_functions = false;
                 self.memory_available = true;
                 self.update_memory_metrics(data);

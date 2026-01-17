@@ -189,7 +189,7 @@ impl App {
             description: "Waiting for data...".to_string(),
             caller_name: "unknown".to_string(),
             percentiles: vec![95],
-            data: hotpath::FunctionsDataJson(std::collections::HashMap::new()),
+            data: Vec::new(),
         };
 
         Self {

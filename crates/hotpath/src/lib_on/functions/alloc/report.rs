@@ -58,7 +58,7 @@ impl<'a> MetricsProvider<'a> for StatsData<'a> {
         self.stats.values().any(|s| s.has_unsupported_async)
     }
 
-    fn metric_data(&self) -> HashMap<String, Vec<MetricType>> {
+    fn metric_data(&self) -> Vec<(String, Vec<MetricType>)> {
         let mut filtered_stats: Vec<_> = self
             .stats
             .iter()
@@ -211,7 +211,7 @@ impl<'a> MetricsProvider<'a> for TimingStatsData<'a> {
         false
     }
 
-    fn metric_data(&self) -> HashMap<String, Vec<MetricType>> {
+    fn metric_data(&self) -> Vec<(String, Vec<MetricType>)> {
         let mut filtered_stats: Vec<_> = self.stats.iter().filter(|(_, s)| s.has_data).collect();
 
         filtered_stats.sort_by(|a, b| {

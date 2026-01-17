@@ -767,8 +767,7 @@ pub mod tests {
         let _alloc_response: FunctionsJson =
             serde_json::from_str(&alloc_json).expect("Failed to parse alloc JSON");
 
-        // Test function logs endpoints using first function from timing response
-        if let Some(first_function_name) = timing_response.data.0.keys().next() {
+        if let Some((first_function_name, _)) = timing_response.data.first() {
             use base64::Engine;
             let encoded_name =
                 base64::engine::general_purpose::STANDARD.encode(first_function_name.as_bytes());

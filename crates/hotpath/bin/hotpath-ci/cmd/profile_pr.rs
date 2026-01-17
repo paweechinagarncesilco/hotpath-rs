@@ -188,6 +188,13 @@ fn calculate_percentage_diff(before: u64, after: u64) -> f64 {
     }
 }
 
+fn find_function<'a>(
+    data: &'a [(String, Vec<hotpath::MetricType>)],
+    name: &str,
+) -> Option<&'a Vec<hotpath::MetricType>> {
+    data.iter().find(|(n, _)| n == name).map(|(_, row)| row)
+}
+
 fn compare_metrics(
     before_metrics: &FunctionsJson,
     after_metrics: &FunctionsJson,
@@ -200,10 +207,8 @@ fn compare_metrics(
     let mut function_diffs = Vec::new();
     let mut new_functions = Vec::new();
 
-    // Process functions that exist in after_metrics (updated, unchanged, or new)
-    for (function_name, after_row) in &after_metrics.data.0 {
-        if let Some(before_row) = before_metrics.data.0.get(function_name) {
-            // Function exists in both before and after - compare metrics
+    for (function_name, after_row) in &after_metrics.data {
+        if let Some(before_row) = find_function(&before_metrics.data, function_name) {
             let mut metrics = Vec::new();
 
             for (metric_idx, after_metric) in after_row.iter().enumerate() {
@@ -221,7 +226,7 @@ fn compare_metrics(
                         (MetricType::Percentage(before_val), MetricType::Percentage(after_val)) => {
                             MetricDiff::Percentage(*before_val, *after_val)
                         }
-                        _ => continue, // Skip mismatched metric types
+                        _ => continue,
                     };
                     metrics.push(diff);
                 }
@@ -234,7 +239,6 @@ fn compare_metrics(
                 is_new: false,
             });
         } else {
-            // Function is new (exists in after but not in before) - show 0 → after
             let mut metrics = Vec::new();
 
             for after_metric in after_row.iter() {
@@ -257,11 +261,8 @@ fn compare_metrics(
         }
     }
 
-    // Process functions that were removed (exist in before but not in after)
-    for (function_name, before_row) in &before_metrics.data.0 {
-        // Check if this function exists in after_metrics
-        if !after_metrics.data.0.contains_key(function_name) {
-            // Function was removed, show before → 0
+    for (function_name, before_row) in &before_metrics.data {
+        if find_function(&after_metrics.data, function_name).is_none() {
             let mut metrics = Vec::new();
 
             for before_metric in before_row.iter() {
@@ -400,46 +401,42 @@ fn format_comparison_markdown(
 #[cfg(test)]
 mod test {
     use super::*;
-    use hotpath::{
-        FunctionsDataJson,
-        MetricType::{CallsCount, DurationNs, Percentage},
-    };
+    use hotpath::MetricType::{CallsCount, DurationNs, Percentage};
 
     #[test]
     fn test_format_comparison_markdown() {
-        use std::collections::HashMap;
-
-        let mut pr_data = HashMap::new();
-        pr_data.insert(
-            "basic::async_function".to_string(),
-            vec![
-                CallsCount(100),
-                DurationNs(1256314),
-                DurationNs(1276927),
-                DurationNs(125631441),
-                Percentage(8940),
-            ],
-        );
-        pr_data.insert(
-            "basic::sync_function".to_string(),
-            vec![
-                CallsCount(100),
-                DurationNs(61184),
-                DurationNs(62847),
-                DurationNs(6118443),
-                Percentage(435),
-            ],
-        );
-        pr_data.insert(
-            "custom_block".to_string(),
-            vec![
-                CallsCount(100),
-                DurationNs(62036),
-                DurationNs(64031),
-                DurationNs(6203646),
-                Percentage(441),
-            ],
-        );
+        let pr_data = vec![
+            (
+                "basic::async_function".to_string(),
+                vec![
+                    CallsCount(100),
+                    DurationNs(1256314),
+                    DurationNs(1276927),
+                    DurationNs(125631441),
+                    Percentage(8940),
+                ],
+            ),
+            (
+                "basic::sync_function".to_string(),
+                vec![
+                    CallsCount(100),
+                    DurationNs(61184),
+                    DurationNs(62847),
+                    DurationNs(6118443),
+                    Percentage(435),
+                ],
+            ),
+            (
+                "custom_block".to_string(),
+                vec![
+                    CallsCount(100),
+                    DurationNs(62036),
+                    DurationNs(64031),
+                    DurationNs(6203646),
+                    Percentage(441),
+                ],
+            ),
+        ];
 
         let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -447,40 +444,41 @@ mod test {
             caller_name: "basic::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(pr_data),
+            data: pr_data,
         };
 
-        let mut main_data = HashMap::new();
-        main_data.insert(
-            "basic::async_function".to_string(),
-            vec![
-                CallsCount(90),
-                DurationNs(1130683),
-                DurationNs(1149234),
-                DurationNs(113068297),
-                Percentage(8046),
-            ],
-        );
-        main_data.insert(
-            "basic::sync_function".to_string(),
-            vec![
-                CallsCount(90),
-                DurationNs(55066),
-                DurationNs(56562),
-                DurationNs(5506599),
-                Percentage(392),
-            ],
-        );
-        main_data.insert(
-            "custom_block".to_string(),
-            vec![
-                CallsCount(90),
-                DurationNs(55832),
-                DurationNs(57628),
-                DurationNs(5583281),
-                Percentage(397),
-            ],
-        );
+        let main_data = vec![
+            (
+                "basic::async_function".to_string(),
+                vec![
+                    CallsCount(90),
+                    DurationNs(1130683),
+                    DurationNs(1149234),
+                    DurationNs(113068297),
+                    Percentage(8046),
+                ],
+            ),
+            (
+                "basic::sync_function".to_string(),
+                vec![
+                    CallsCount(90),
+                    DurationNs(55066),
+                    DurationNs(56562),
+                    DurationNs(5506599),
+                    Percentage(392),
+                ],
+            ),
+            (
+                "custom_block".to_string(),
+                vec![
+                    CallsCount(90),
+                    DurationNs(55832),
+                    DurationNs(57628),
+                    DurationNs(5583281),
+                    Percentage(397),
+                ],
+            ),
+        ];
 
         let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -488,7 +486,7 @@ mod test {
             caller_name: "basic::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(main_data),
+            data: main_data,
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);
@@ -509,11 +507,7 @@ mod test {
 
     #[test]
     fn test_removed_function() {
-        use hotpath::MetricType::{CallsCount, DurationNs, Percentage};
-        use std::collections::HashMap;
-
-        let mut pr_data = HashMap::new();
-        pr_data.insert(
+        let pr_data = vec![(
             "test::function_a".to_string(),
             vec![
                 CallsCount(100),
@@ -522,7 +516,7 @@ mod test {
                 DurationNs(100000000),
                 Percentage(10000),
             ],
-        );
+        )];
 
         let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -530,30 +524,31 @@ mod test {
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(pr_data),
+            data: pr_data,
         };
 
-        let mut main_data = HashMap::new();
-        main_data.insert(
-            "test::function_a".to_string(),
-            vec![
-                CallsCount(90),
-                DurationNs(900000),
-                DurationNs(1000000),
-                DurationNs(81000000),
-                Percentage(9000),
-            ],
-        );
-        main_data.insert(
-            "test::function_b".to_string(),
-            vec![
-                CallsCount(50),
-                DurationNs(500000),
-                DurationNs(550000),
-                DurationNs(25000000),
-                Percentage(2500),
-            ],
-        );
+        let main_data = vec![
+            (
+                "test::function_a".to_string(),
+                vec![
+                    CallsCount(90),
+                    DurationNs(900000),
+                    DurationNs(1000000),
+                    DurationNs(81000000),
+                    Percentage(9000),
+                ],
+            ),
+            (
+                "test::function_b".to_string(),
+                vec![
+                    CallsCount(50),
+                    DurationNs(500000),
+                    DurationNs(550000),
+                    DurationNs(25000000),
+                    Percentage(2500),
+                ],
+            ),
+        ];
 
         let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -561,7 +556,7 @@ mod test {
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(main_data),
+            data: main_data,
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);
@@ -590,30 +585,28 @@ mod test {
 
     #[test]
     fn test_new_function() {
-        use hotpath::MetricType::{CallsCount, DurationNs, Percentage};
-        use std::collections::HashMap;
-
-        let mut pr_data = HashMap::new();
-        pr_data.insert(
-            "test::function_a".to_string(),
-            vec![
-                CallsCount(100),
-                DurationNs(1000000),
-                DurationNs(1100000),
-                DurationNs(100000000),
-                Percentage(8000),
-            ],
-        );
-        pr_data.insert(
-            "test::function_c".to_string(),
-            vec![
-                CallsCount(60),
-                DurationNs(600000),
-                DurationNs(650000),
-                DurationNs(36000000),
-                Percentage(2400),
-            ],
-        );
+        let pr_data = vec![
+            (
+                "test::function_a".to_string(),
+                vec![
+                    CallsCount(100),
+                    DurationNs(1000000),
+                    DurationNs(1100000),
+                    DurationNs(100000000),
+                    Percentage(8000),
+                ],
+            ),
+            (
+                "test::function_c".to_string(),
+                vec![
+                    CallsCount(60),
+                    DurationNs(600000),
+                    DurationNs(650000),
+                    DurationNs(36000000),
+                    Percentage(2400),
+                ],
+            ),
+        ];
 
         let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -621,11 +614,10 @@ mod test {
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(pr_data),
+            data: pr_data,
         };
 
-        let mut main_data = HashMap::new();
-        main_data.insert(
+        let main_data = vec![(
             "test::function_a".to_string(),
             vec![
                 CallsCount(90),
@@ -634,7 +626,7 @@ mod test {
                 DurationNs(81000000),
                 Percentage(9000),
             ],
-        );
+        )];
 
         let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -642,7 +634,7 @@ mod test {
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(main_data),
+            data: main_data,
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);
@@ -671,31 +663,28 @@ mod test {
 
     #[test]
     fn test_new_and_removed_functions() {
-        use hotpath::MetricType::{CallsCount, DurationNs, Percentage};
-        use std::collections::HashMap;
-
-        // Head has function_a (updated) and function_c (new)
-        let mut pr_data = HashMap::new();
-        pr_data.insert(
-            "test::function_a".to_string(),
-            vec![
-                CallsCount(100),
-                DurationNs(1000000),
-                DurationNs(1100000),
-                DurationNs(100000000),
-                Percentage(7000),
-            ],
-        );
-        pr_data.insert(
-            "test::function_c".to_string(),
-            vec![
-                CallsCount(40),
-                DurationNs(400000),
-                DurationNs(450000),
-                DurationNs(16000000),
-                Percentage(1500),
-            ],
-        );
+        let pr_data = vec![
+            (
+                "test::function_a".to_string(),
+                vec![
+                    CallsCount(100),
+                    DurationNs(1000000),
+                    DurationNs(1100000),
+                    DurationNs(100000000),
+                    Percentage(7000),
+                ],
+            ),
+            (
+                "test::function_c".to_string(),
+                vec![
+                    CallsCount(40),
+                    DurationNs(400000),
+                    DurationNs(450000),
+                    DurationNs(16000000),
+                    Percentage(1500),
+                ],
+            ),
+        ];
 
         let pr_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -703,31 +692,31 @@ mod test {
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(pr_data),
+            data: pr_data,
         };
 
-        // Base has function_a (updated) and function_b (removed)
-        let mut main_data = HashMap::new();
-        main_data.insert(
-            "test::function_a".to_string(),
-            vec![
-                CallsCount(90),
-                DurationNs(900000),
-                DurationNs(1000000),
-                DurationNs(81000000),
-                Percentage(8000),
-            ],
-        );
-        main_data.insert(
-            "test::function_b".to_string(),
-            vec![
-                CallsCount(30),
-                DurationNs(300000),
-                DurationNs(350000),
-                DurationNs(9000000),
-                Percentage(1200),
-            ],
-        );
+        let main_data = vec![
+            (
+                "test::function_a".to_string(),
+                vec![
+                    CallsCount(90),
+                    DurationNs(900000),
+                    DurationNs(1000000),
+                    DurationNs(81000000),
+                    Percentage(8000),
+                ],
+            ),
+            (
+                "test::function_b".to_string(),
+                vec![
+                    CallsCount(30),
+                    DurationNs(300000),
+                    DurationNs(350000),
+                    DurationNs(9000000),
+                    Percentage(1200),
+                ],
+            ),
+        ];
 
         let main_metrics = FunctionsJson {
             hotpath_profiling_mode: hotpath::ProfilingMode::Timing,
@@ -735,7 +724,7 @@ mod test {
             caller_name: "test::main".to_string(),
             percentiles: vec![95],
             description: "Time metrics".to_string(),
-            data: FunctionsDataJson(main_data),
+            data: main_data,
         };
 
         let comparison = compare_metrics(&main_metrics, &pr_metrics);
