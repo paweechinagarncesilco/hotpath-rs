@@ -297,7 +297,7 @@ pub fn measure_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
     let sig = &input.sig;
     let block = &input.block;
 
-    let name = sig.ident.to_string();
+    let mut name = sig.ident.to_string();
     let asyncness = sig.asyncness.is_some();
 
     // Parse optional `log = true` attribute
@@ -309,6 +309,12 @@ pub fn measure_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
                 meta.input.parse::<syn::Token![=]>()?;
                 let lit: syn::LitBool = meta.input.parse()?;
                 log_result = lit.value();
+                return Ok(());
+            }
+            if meta.path.is_ident("name") {
+                meta.input.parse::<syn::Token![=]>()?;
+                let lit: syn::LitStr = meta.input.parse()?;
+                name = lit.value();
                 return Ok(());
             }
 
